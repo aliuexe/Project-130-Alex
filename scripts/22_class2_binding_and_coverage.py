@@ -14,17 +14,17 @@ CD8+ cytotoxic T-cell responses against cancer neoantigens.
 This script:
 1. Predicts Class II binding affinity (IC50 in nM) and presentation probability
    for all 15-mer mutant and wild-type peptides in `results/peptides_all.tsv`
-   against HLA-DRB1*15:01 and HLA-DRB1*07:01 using an IEDB-calibrated SMM-align
-   Position Weight Matrix (9-mer core sliding window across 15-mers).
-2. Identifies Practical Class II Neoantigens (Mutant IC50 < 500 nM, WT IC50 >= 500 nM,
-   TPM >= 10, Clonal, Recurrence >= 2).
+   against HLA-DRB1*15:01 and HLA-DRB1*07:01 using a simplified anchor-position
+   PSSM (positions P1, P4, P6, P9 of the 9-mer binding core).
+   LIMITATION: This is a 4-anchor-position model, not a full SMM-align/NetMHCIIpan
+   predictor. It captures the dominant MHC-II anchor preferences but does not score
+   non-anchor positions (P2, P3, P5, P7, P8). This is a stated limitation.
+2. Identifies Practical Class II Neoantigens (Mutant IC50 < 500 nM, differential
+   agretopicity or TCR contact loop novelty, TPM >= 10, Clonal, Recurrence >= 2).
 3. Expands the Greedy Set-Cover algorithm to design a Dual Class I + Class II
-   Vaccine Cocktail, comparing:
-   - Class I Only (9-mers, CD8+ T-cells)
-   - Class II Only (15-mers, CD4+ Helper T-cells)
-   - Dual Class I + Class II Vaccine Cocktail (CD4+ / CD8+ Synergy)
-4. Quantifies how combining Class I + Class II epitopes drastically improves
-   both overall patient coverage (>= 1 epitope) and multi-epitope coverage (>= 2 epitopes).
+   Vaccine Cocktail with **class-aware coverage tracking**, measuring:
+   - Overall coverage (>= 1 epitope of any class per tumour)
+   - Genuine CD4+/CD8+ synergy (>= 1 Class I AND >= 1 Class II epitope per tumour)
 """
 
 import os
@@ -56,10 +56,11 @@ def log(msg):
     print(f"[22 Class II] {msg}", flush=True)
 
 # =============================================================================
-# CALIBRATED IEDB HLA-DRB1*15:01 & *07:01 SMM-ALIGN POSITION WEIGHT MATRICES
+# ANCHOR-POSITION PSSM FOR HLA-DRB1*15:01 & *07:01
 # =============================================================================
-# Calibrated for 9-mer core binding within 15-mer peptides
-# Values represent log-energy contributions; negative = favorable binding
+# Simplified 4-anchor model scoring P1, P4, P6, P9 of the 9-mer binding core.
+# Values represent log-energy contributions; negative = favorable binding.
+# LIMITATION: Positions P2, P3, P5, P7, P8 are not scored.
 AAS = "ACDEFGHIKLMNPQRSTVWY"
 
 # HLA-DRB1*15:01 prefers aromatic/large hydrophobic at P1, aliphatic at P4, small/basic at P6, P9
@@ -80,8 +81,9 @@ DRB1_0701_WEIGHTS = {
 
 def score_9mer_core(core, weights_dict, base_ic50=8000.0):
     """
-    Scores a 9-mer core sequence against an HLA-DRB1 SMM-align weight matrix.
+    Scores a 9-mer core sequence against an HLA-DRB1 anchor-position weight matrix.
     Returns predicted IC50 in nM.
+    NOTE: Only anchor positions (P1, P4, P6, P9) contribute to the score.
     """
     log_affinity = math.log10(base_ic50)
     for pos, aa_weights in weights_dict.items():
@@ -94,10 +96,10 @@ def score_9mer_core(core, weights_dict, base_ic50=8000.0):
 def predict_class2_15mer(peptide, allele):
     """
     Evaluates all 7 possible 9-mer cores in a 15-mer peptide.
-    Returns (best_ic50_nM, best_core, presentation_prob).
+    Returns (best_ic50_nM, best_core, presentation_prob, best_offset).
     """
     if len(peptide) != 15 or any(c not in AAS for c in peptide):
-        return 10000.0, peptide[:9], 0.0
+        return 10000.0, peptide[:9], 0.0, 0
     
     weights = DRB1_1501_WEIGHTS if "15:01" in allele else DRB1_0701_WEIGHTS
     best_ic50 = 10000.0
@@ -114,6 +116,41 @@ def predict_class2_15mer(peptide, allele):
     # Logistic presentation mapping where IC50 = 500 nM -> 0.50 presentation prob
     pres_prob = 1.0 / (1.0 + (best_ic50 / 500.0) ** 2)
     return best_ic50, best_core, pres_prob, best_offset
+
+def predict_class2_15mer_constrained(peptide, allele, mutpos_1based):
+    """
+    Like predict_class2_15mer, but ONLY considers 9-mer cores where the mutation
+    (at mutpos_1based in the 15-mer) falls within the 9-mer core (positions 1-9).
+    Returns (best_ic50_nM, best_core, presentation_prob, best_offset, core_mut_pos).
+    Returns None if no valid core contains the mutation.
+    """
+    if len(peptide) != 15 or any(c not in AAS for c in peptide):
+        return None
+
+    weights = DRB1_1501_WEIGHTS if "15:01" in allele else DRB1_0701_WEIGHTS
+    best_ic50 = 10000.0
+    best_core = None
+    best_offset = 0
+    best_cmp = 0
+
+    for i in range(7):
+        core_mut_pos = mutpos_1based - i  # 1-based position in core
+        # Only consider cores where the mutation is within the 9-mer
+        if core_mut_pos < 1 or core_mut_pos > 9:
+            continue
+        core = peptide[i:i+9]
+        ic50 = score_9mer_core(core, weights)
+        if ic50 < best_ic50:
+            best_ic50 = ic50
+            best_core = core
+            best_offset = i
+            best_cmp = core_mut_pos
+
+    if best_core is None:
+        return None
+
+    pres_prob = 1.0 / (1.0 + (best_ic50 / 500.0) ** 2)
+    return best_ic50, best_core, pres_prob, best_offset, best_cmp
 
 def load_cohort_metadata():
     """Loads TPM, Clonality, and Sample-presence arrays for all mutations."""
@@ -153,8 +190,8 @@ def load_cohort_metadata():
 
 def run_greedy_cover(candidates, sampsets, N, max_steps=35):
     """
-    Runs greedy set-cover optimization on a candidate pool.
-    Returns trajectory of (step, gene, change, cov_ge1, pct_ge1, cov_ge2, pct_ge2).
+    Runs greedy set-cover optimization on a candidate pool (single MHC class).
+    Returns trajectory of (gene, change, cov_ge1, pct_ge1, cov_ge2, pct_ge2).
     """
     keys = [(r["GeneName"], r["ProteinChange"]) for r in candidates]
     covered_ge1 = np.zeros(N, dtype=bool)
@@ -187,6 +224,125 @@ def run_greedy_cover(candidates, sampsets, N, max_steps=35):
         order.append((best_k[0], best_k[1], c1, 100.0 * c1 / N, c2, 100.0 * c2 / N))
     return order
 
+def run_dual_greedy_cover(class1_candidates, class2_candidates, sampsets, N, max_steps=30):
+    """
+    Class-aware greedy set-cover for the dual Class I + Class II vaccine cocktail.
+    
+    Tracks Class I and Class II hits SEPARATELY per tumour so that genuine
+    CD4+/CD8+ synergy (>= 1 Class I AND >= 1 Class II epitope in a tumour)
+    can be measured.
+    
+    At each step, selects the candidate from the combined pool that maximises
+    marginal gain in overall coverage (>= 1 epitope of any class).
+    
+    Returns trajectory of tuples:
+        (gene, change, mhc_class, cov_any, pct_any, cov_ge2, pct_ge2,
+         cov_synergy, pct_synergy, n_c1_selected, n_c2_selected)
+    where:
+        cov_any = tumours with >= 1 epitope (any class)
+        cov_ge2 = tumours with >= 2 distinct mutations (any class)
+        cov_synergy = tumours with >= 1 Class I AND >= 1 Class II (genuine CD4+/CD8+)
+    """
+    # Build keyed candidate pools, tagging each with its MHC class
+    c1_keys = {(r["GeneName"], r["ProteinChange"]) for r in class1_candidates}
+    c2_keys = {(r["GeneName"], r["ProteinChange"]) for r in class2_candidates}
+    
+    # Class II-only mutations (not targetable by Class I)
+    c2_exclusive = c2_keys - c1_keys
+    # Class I-only mutations (not targetable by Class II)
+    c1_exclusive = c1_keys - c2_keys
+    # Mutations targetable by both classes
+    both = c1_keys & c2_keys
+    
+    log(f"  Class I-exclusive keys: {len(c1_exclusive)}, Class II-exclusive keys: {len(c2_exclusive)}, Both: {len(both)}")
+    
+    # Build candidate entries: each entry is (gene, change, mhc_class)
+    # For mutations available in both classes, create TWO entries
+    remaining = set()
+    for k in c1_exclusive:
+        remaining.add((k[0], k[1], "ClassI"))
+    for k in c2_exclusive:
+        remaining.add((k[0], k[1], "ClassII"))
+    for k in both:
+        remaining.add((k[0], k[1], "ClassI"))
+        remaining.add((k[0], k[1], "ClassII"))
+    
+    # Per-tumour tracking arrays
+    c1_hits = np.zeros(N, dtype=int)   # Class I epitope hits per tumour
+    c2_hits = np.zeros(N, dtype=int)   # Class II epitope hits per tumour
+    covered_any = np.zeros(N, dtype=bool)
+    hit_count = np.zeros(N, dtype=int)
+    
+    order = []
+    n_c1_selected = 0
+    n_c2_selected = 0
+    
+    while remaining and len(order) < max_steps:
+        best_entry = None
+        best_gain = -1
+        
+        for entry in remaining:
+            gene, change, mhc_class = entry
+            k = (gene, change)
+            if k not in sampsets:
+                continue
+            gain = int((sampsets[k] & ~covered_any).sum())
+            if gain > best_gain:
+                best_gain = gain
+                best_entry = entry
+        
+        if best_gain <= 0:
+            # If no new tumours to cover, maximise ge2 (secondary objective)
+            for entry in remaining:
+                gene, change, mhc_class = entry
+                k = (gene, change)
+                if k not in sampsets:
+                    continue
+                gain2 = int((sampsets[k] & (hit_count == 1)).sum())
+                if gain2 > best_gain:
+                    best_gain = gain2
+                    best_entry = entry
+            if best_gain <= 0:
+                break
+        
+        if best_entry is None:
+            break
+        
+        gene, change, mhc_class = best_entry
+        k = (gene, change)
+        
+        # Remove this entry and (if it exists) the other-class entry for the same mutation
+        remaining.discard(best_entry)
+        other_class = "ClassII" if mhc_class == "ClassI" else "ClassI"
+        remaining.discard((gene, change, other_class))
+        
+        # Update coverage arrays
+        svec = sampsets[k]
+        covered_any |= svec
+        hit_count += svec.astype(int)
+        if mhc_class == "ClassI":
+            c1_hits += svec.astype(int)
+            n_c1_selected += 1
+        else:
+            c2_hits += svec.astype(int)
+            n_c2_selected += 1
+        
+        # Compute metrics
+        cov_any = int(covered_any.sum())
+        cov_ge2 = int((hit_count >= 2).sum())
+        # Genuine CD4+/CD8+ synergy: tumour has >= 1 Class I AND >= 1 Class II
+        cov_synergy = int(((c1_hits >= 1) & (c2_hits >= 1)).sum())
+        
+        order.append((
+            gene, change, mhc_class,
+            cov_any, 100.0 * cov_any / N,
+            cov_ge2, 100.0 * cov_ge2 / N,
+            cov_synergy, 100.0 * cov_synergy / N,
+            n_c1_selected, n_c2_selected
+        ))
+    
+    return order
+
 def main():
     t0 = time.time()
     N, tpm_map, clonal_map, sampsets = load_cohort_metadata()
@@ -197,7 +353,8 @@ def main():
     log(f"Scanning 15-mers in {PEP_ALL}...")
     alleles = ["HLA-DRB1*15:01", "HLA-DRB1*07:01"]
     
-    # Store mut and wt 15-mers per (gene, change)
+    # Store mut and wt 15-mers per (gene, change), grouped by sliding window index
+    # Key: (gene, change), Value: list of (peptide, mutpos_1based)
     mut_15mers = {}
     wt_15mers = {}
     with open(PEP_ALL) as fh:
@@ -215,6 +372,9 @@ def main():
     log(f"Extracted 15-mers for {len(mut_15mers):,} distinct mutations.")
     
     class2_candidates = []
+    n_outside_core = 0
+    n_evaluated = 0
+    
     for key, peplist in mut_15mers.items():
         gene, change = key
         # Check recurrence >= 2 in cohort
@@ -229,35 +389,53 @@ def main():
             continue
             
         freq = int(svec.sum())
-        wtlist = [wp[0] for wp in wt_15mers.get(key, [])]
+        # Build WT lookup: map (peptide_sequence) -> mutpos for aligned comparison
+        wt_by_mutpos = {}
+        for wpep, wmutpos in wt_15mers.get(key, []):
+            wt_by_mutpos.setdefault(wmutpos, []).append(wpep)
         
         # Evaluate against DRB1*15:01 and DRB1*07:01
         for pep, mutpos in peplist:
             for allele in alleles:
-                mut_ic50, mut_core, mut_el, offset = predict_class2_15mer(pep, allele)
+                n_evaluated += 1
+                
+                # Use constrained prediction: only consider cores where mutation is IN the core
+                result = predict_class2_15mer_constrained(pep, allele, mutpos)
+                if result is None:
+                    n_outside_core += 1
+                    continue
+                
+                mut_ic50, mut_core, mut_el, offset, core_mut_pos = result
                 if mut_ic50 >= 500.0:
                     continue
-                # Check WT differential agretopicity
-                wt_ic50_min = 10000.0
-                wt_el_max = 0.0
-                for wpep in set(wtlist):
-                    wic50, wcore, wel, woff = predict_class2_15mer(wpep, allele)
-                    if wic50 < wt_ic50_min:
-                        wt_ic50_min = wic50
-                        wt_el_max = wel
                 
-                # Check TCR Contact vs Agretopicity
-                core_mut_pos = mutpos - offset
+                # Compare against the ALIGNED WT 15-mer (same sliding window)
+                # The WT 15-mer with the same mutpos corresponds to the same protein window
+                wt_ic50_aligned = 10000.0
+                wt_el_aligned = 0.0
+                for wpep in wt_by_mutpos.get(mutpos, []):
+                    wt_result = predict_class2_15mer_constrained(wpep, allele, mutpos)
+                    if wt_result is not None:
+                        wic50, wcore, wel, woff, wcmp = wt_result
+                        if wic50 < wt_ic50_aligned:
+                            wt_ic50_aligned = wic50
+                            wt_el_aligned = wel
+                
+                # Classify neoantigenicity mechanism based on where the mutation sits in the core
+                # P1, P4, P6, P9 = anchor positions (affect MHC binding)
+                # P2, P3, P5, P7, P8 = TCR-facing positions (affect T-cell recognition)
                 is_tcr_contact = (core_mut_pos in {2, 3, 5, 7, 8})
-                is_agretopic = (wt_ic50_min >= 500.0 or mut_ic50 < wt_ic50_min * 0.5)
+                is_anchor = (core_mut_pos in {1, 4, 6, 9})
                 
-                if is_agretopic and is_tcr_contact:
-                    mech = "Dual_Agretopic_TCR"
-                elif is_agretopic:
+                # Agretopicity: mutation creates de novo binding or substantially improves it
+                is_agretopic = (wt_ic50_aligned >= 500.0 or mut_ic50 < wt_ic50_aligned * 0.5)
+                
+                if is_anchor and is_agretopic:
                     mech = "Agretopic_Anchor"
                 elif is_tcr_contact:
                     mech = "TCR_Contact_Loop"
                 else:
+                    # Mutation is at an anchor position but didn't change binding enough
                     continue
                     
                 class2_candidates.append({
@@ -265,16 +443,19 @@ def main():
                     "ProteinChange": change,
                     "Peptide": pep,
                     "Core9mer": mut_core,
+                    "CoreMutPos": core_mut_pos,
                     "HLAAllele": allele,
                     "Mutant_IC50": round(mut_ic50, 1),
-                    "WT_IC50": round(wt_ic50_min, 1),
+                    "WT_IC50": round(wt_ic50_aligned, 1),
                     "Mutant_EL": round(mut_el, 3),
-                    "WT_EL": round(wt_el_max, 3),
+                    "WT_EL": round(wt_el_aligned, 3),
                     "ClassIIMechanism": mech,
                     "GeneLevelTPM": round(tpm, 1),
                     "MutationFrequency": freq,
                     "TumoursCovered": freq
                 })
+    
+    log(f"Evaluated {n_evaluated:,} (peptide, allele) pairs; {n_outside_core:,} skipped (mutation outside 9-mer core).")
                     
     # Deduplicate keeping best binder per (GeneName, ProteinChange, HLAAllele)
     best_c2 = {}
@@ -286,8 +467,15 @@ def main():
     prac_class2 = sorted(list(best_c2.values()), key=lambda r: (-r["TumoursCovered"], r["Mutant_IC50"]))
     log(f"Discovered {len(prac_class2):,} Practical Class II (15-mer) Neoantigens!")
     
+    # Count mechanisms
+    mech_counts = {}
+    for r in prac_class2:
+        mech_counts[r["ClassIIMechanism"]] = mech_counts.get(r["ClassIIMechanism"], 0) + 1
+    for mech, count in sorted(mech_counts.items()):
+        log(f"  Mechanism {mech}: {count} candidates")
+    
     # Write Practical Class II Neoantigen TSV
-    cols_c2 = ["GeneName", "ProteinChange", "Peptide", "Core9mer", "HLAAllele",
+    cols_c2 = ["GeneName", "ProteinChange", "Peptide", "Core9mer", "CoreMutPos", "HLAAllele",
                "Mutant_IC50", "WT_IC50", "Mutant_EL", "WT_EL", "ClassIIMechanism",
                "GeneLevelTPM", "MutationFrequency", "TumoursCovered"]
     with open(OUT_CLASS2_PRAC, "w") as fh:
@@ -321,7 +509,7 @@ def main():
     log(f"Loaded {len(prac_class1):,} Practical Class I (9-mer) Neoantigens.")
 
     # =========================================================================
-    # STEP 3: RUN GREEDY SET-COVER FOR 3 COMPETING VACCINE STRATEGIES
+    # STEP 3: RUN GREEDY SET-COVER FOR CLASS I ONLY, CLASS II ONLY, AND DUAL
     # =========================================================================
     log("Running Greedy Set-Cover for Class I Only (9-mers)...")
     traj_c1 = run_greedy_cover(prac_class1, sampsets, N, max_steps=30)
@@ -329,9 +517,8 @@ def main():
     log("Running Greedy Set-Cover for Class II Only (15-mers)...")
     traj_c2 = run_greedy_cover(prac_class2, sampsets, N, max_steps=30)
     
-    log("Running Greedy Set-Cover for Optimal Dual Class I + II Cocktail...")
-    dual_pool = prac_class1 + prac_class2
-    traj_dual = run_greedy_cover(dual_pool, sampsets, N, max_steps=30)
+    log("Running Class-Aware Dual Greedy Set-Cover (Class I + II with synergy tracking)...")
+    traj_dual = run_dual_greedy_cover(prac_class1, prac_class2, sampsets, N, max_steps=30)
     
     # Write Dual Vaccine Coverage Curve TSV
     with open(OUT_DUAL_CURVE, "w") as fh:
@@ -341,82 +528,134 @@ def main():
             fh.write(f"Class1_Only\t{idx}\t{g}\t{pc}\t{c1}\t{p1:.1f}\t{c2}\t{p2:.1f}\n")
         for idx, (g, pc, c1, p1, c2, p2) in enumerate(traj_c2, 1):
             fh.write(f"Class2_Only\t{idx}\t{g}\t{pc}\t{c1}\t{p1:.1f}\t{c2}\t{p2:.1f}\n")
-        for idx, (g, pc, c1, p1, c2, p2) in enumerate(traj_dual, 1):
-            fh.write(f"Dual_Optimal_Cocktail\t{idx}\t{g}\t{pc}\t{c1}\t{p1:.1f}\t{c2}\t{p2:.1f}\n")
+        # Dual trajectory with additional columns
+        fh.write("\n# DUAL COCKTAIL TRAJECTORY (class-aware)\n")
+        fh.write("Strategy\tStep\tGeneName\tProteinChange\tMHC_Class\tTumours_ge1\tPct_ge1\t"
+                 "Tumours_ge2\tPct_ge2\tCD4_CD8_Synergy\tPct_Synergy\tN_ClassI\tN_ClassII\n")
+        for idx, entry in enumerate(traj_dual, 1):
+            g, pc, mc, ca, pa, c2, p2, cs, ps, nc1, nc2 = entry
+            fh.write(f"Dual_ClassAware\t{idx}\t{g}\t{pc}\t{mc}\t{ca}\t{pa:.1f}\t"
+                     f"{c2}\t{p2:.1f}\t{cs}\t{ps:.1f}\t{nc1}\t{nc2}\n")
     log(f"Dual vaccine coverage curves exported to {OUT_DUAL_CURVE}")
 
     # Write detailed comparative summary report
     with open(OUT_DUAL_SUMM, "w") as fh:
-        fh.write("=" * 80 + "\n")
+        fh.write("=" * 90 + "\n")
         fh.write("DUAL CLASS I + CLASS II VACCINE COCKTAIL COMPARATIVE EFFICACY REPORT\n")
         fh.write(f"Cohort Size: N = {N} Colorectal Cancer Tumours\n")
-        fh.write("=" * 80 + "\n\n")
+        fh.write("=" * 90 + "\n\n")
         
         fh.write("1. TOP 15 DISCOVERED PRACTICAL CLASS II (15-MER) NEOANTIGENS\n")
-        fh.write("-" * 85 + "\n")
-        fh.write(f"{'Gene':10s} {'Change':12s} {'15-mer Peptide':17s} {'Core9mer':10s} {'HLA-DRB1':14s} {'IC50(nM)':9s} {'Mech':18s} {'Freq':5s}\n")
+        fh.write("-" * 90 + "\n")
+        fh.write(f"{'Gene':10s} {'Change':12s} {'15-mer Peptide':17s} {'Core9mer':10s} {'CMP':4s} "
+                 f"{'HLA-DRB1':14s} {'IC50(nM)':9s} {'WT_IC50':8s} {'Mech':18s} {'Freq':5s}\n")
         for r in prac_class2[:15]:
-            fh.write(f"{r['GeneName']:10s} {r['ProteinChange']:12s} {r['Peptide']:17s} {r['Core9mer']:10s} {r['HLAAllele']:14s} {r['Mutant_IC50']:<9.1f} {r['ClassIIMechanism']:18s} {r['MutationFrequency']:5d}\n")
+            fh.write(f"{r['GeneName']:10s} {r['ProteinChange']:12s} {r['Peptide']:17s} "
+                     f"{r['Core9mer']:10s} P{r['CoreMutPos']:<3d} {r['HLAAllele']:14s} "
+                     f"{r['Mutant_IC50']:<9.1f} {r['WT_IC50']:<8.1f} "
+                     f"{r['ClassIIMechanism']:18s} {r['MutationFrequency']:5d}\n")
         fh.write("\n")
         
         fh.write("2. VACCINE COCKTAIL POPULATION COVERAGE AT 10, 20, AND 30 EPITOPES\n")
-        fh.write("-" * 80 + "\n")
+        fh.write("-" * 90 + "\n")
         fh.write(f"{'Strategy':25s} | {'--- 10 Epitopes ---':20s} | {'--- 20 Epitopes ---':20s} | {'--- 30 Epitopes ---':20s}\n")
         fh.write(f"{'':25s} | {'ge1 (%)':9s} {'ge2 (%)':10s} | {'ge1 (%)':9s} {'ge2 (%)':10s} | {'ge1 (%)':9s} {'ge2 (%)':10s}\n")
         
-        for name, traj in [("Class I Only (9-mer)", traj_c1), ("Class II Only (15-mer)", traj_c2), ("Dual Optimal Cocktail", traj_dual)]:
+        for name, traj in [("Class I Only (9-mer)", traj_c1), ("Class II Only (15-mer)", traj_c2)]:
             s10 = traj[min(9, len(traj)-1)]
             s20 = traj[min(19, len(traj)-1)]
             s30 = traj[min(29, len(traj)-1)]
             fh.write(f"{name:25s} | {s10[3]:6.1f}%   {s10[5]:6.1f}%    | {s20[3]:6.1f}%   {s20[5]:6.1f}%    | {s30[3]:6.1f}%   {s30[5]:6.1f}%\n")
+        
+        # Dual trajectory uses different tuple format
+        if traj_dual:
+            s10d = traj_dual[min(9, len(traj_dual)-1)]
+            s20d = traj_dual[min(19, len(traj_dual)-1)]
+            s30d = traj_dual[min(29, len(traj_dual)-1)]
+            fh.write(f"{'Dual Optimal Cocktail':25s} | {s10d[4]:6.1f}%   {s10d[6]:6.1f}%    | {s20d[4]:6.1f}%   {s20d[6]:6.1f}%    | {s30d[4]:6.1f}%   {s30d[6]:6.1f}%\n")
         fh.write("\n")
         
-        fh.write("3. WHY THE OPTIMAL DUAL COCKTAIL DRASTICALLY IMPROVES BIOLOGICAL PLAUSIBILITY\n")
-        fh.write("-" * 80 + "\n")
+        fh.write("3. GENUINE CD4+ / CD8+ SYNERGY (>= 1 Class I AND >= 1 Class II per tumour)\n")
+        fh.write("-" * 90 + "\n")
+        if traj_dual:
+            fh.write(f"{'Step':5s} {'Gene':12s} {'Change':12s} {'Class':8s} | {'Any':6s} | {'ge2':6s} | {'Synergy':8s} | {'#C1':4s} {'#C2':4s}\n")
+            for idx, entry in enumerate(traj_dual[:30], 1):
+                g, pc, mc, ca, pa, c2, p2, cs, ps, nc1, nc2 = entry
+                fh.write(f"{idx:5d} {g:12s} {pc:12s} {mc:8s} | {pa:5.1f}% | {p2:5.1f}% | {ps:6.1f}%  | {nc1:4d} {nc2:4d}\n")
+        fh.write("\n")
+        
+        fh.write("4. WHY CLASS-AWARE TRACKING MATTERS\n")
+        fh.write("-" * 90 + "\n")
         fh.write("a) Immunological Synergy: CD4+ T-cell help (via MHC Class II 15-mers) is required\n")
         fh.write("   to prime, sustain, and prevent exhaustion of CD8+ cytotoxic T-cells (via MHC Class I 9-mers).\n")
-        fh.write("b) Overcoming Mutual Exclusivity without Forced Ratios: By prioritizing the mathematically\n")
-        fh.write("   optimal candidates from the combined Class I + II pool, the algorithm naturally selects\n")
-        fh.write("   a 60% Class II / 40% Class I mixture in the Top 10, maximizing both population coverage (63.1%)\n")
-        fh.write("   and multi-epitope CD4+/CD8+ synergy (20.0%) without any quality degradation.\n")
+        fh.write("b) Class-Aware vs Naive Tracking: The naive 'ge2' metric counts tumours hit by >= 2 distinct\n")
+        fh.write("   mutations, but does not distinguish whether both hits are Class I (no CD4+ help) or one\n")
+        fh.write("   is Class I and one is Class II (genuine CD4+/CD8+ synergy). The 'Synergy' metric\n")
+        fh.write("   specifically counts tumours with >= 1 Class I AND >= 1 Class II epitope.\n")
+        fh.write("c) Stated Limitation: The MHC-II binding predictions use a simplified 4-anchor-position\n")
+        fh.write("   PSSM (P1, P4, P6, P9). Non-anchor positions (P2, P3, P5, P7, P8) are not scored.\n")
+        fh.write("   A full SMM-align or NetMHCIIpan predictor would provide more accurate binding estimates.\n")
     log(f"Summary report written to {OUT_DUAL_SUMM}")
 
     # =========================================================================
     # STEP 4: PLOT FIGURE 22 — COMPARATIVE DUAL COCKTAIL COVERAGE CURVE
     # =========================================================================
     log("Rendering comparative coverage figure...")
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(16, 6.5))
+    fig, axes = plt.subplots(1, 3, figsize=(22, 6.5))
     
-    xs1 = [i for i in range(1, len(traj_c1)+1)]
-    xs2 = [i for i in range(1, len(traj_c2)+1)]
-    xsd = [i for i in range(1, len(traj_dual)+1)]
+    xs1 = list(range(1, len(traj_c1)+1))
+    xs2 = list(range(1, len(traj_c2)+1))
+    xsd = list(range(1, len(traj_dual)+1))
     
-    # Left subplot: >= 1 epitope per tumour
-    ax1.plot(xs1, [x[3] for x in traj_c1], "-o", color="#457B9D", ms=4, label="Class I Only (9-mer, CD8+)")
-    ax1.plot(xs2, [x[3] for x in traj_c2], "-s", color="#F4A261", ms=4, label="Class II Only (15-mer, CD4+)")
-    ax1.plot(xsd, [x[3] for x in traj_dual], "-^", color="#E63946", ms=5, linewidth=2.5, label="Dual Class I + II (Optimal Pool)")
-    ax1.set_xlabel("Number of Neoantigens in Vaccine Cocktail", fontsize=11)
-    ax1.set_ylabel(f"% of Tumours Covered (≥ 1 Epitope, N={N})", fontsize=11)
-    ax1.set_title("Population Coverage: ≥ 1 Epitope per Tumour", fontsize=13, fontweight="bold")
-    ax1.grid(True, linestyle="--", alpha=0.5)
-    ax1.legend(loc="lower right", fontsize=10)
-    ax1.set_ylim([0, 100])
+    # Panel A: >= 1 epitope per tumour (any class)
+    ax = axes[0]
+    ax.plot(xs1, [x[3] for x in traj_c1], "-o", color="#457B9D", ms=4, label="Class I Only (9-mer, CD8+)")
+    ax.plot(xs2, [x[3] for x in traj_c2], "-s", color="#F4A261", ms=4, label="Class II Only (15-mer, CD4+)")
+    ax.plot(xsd, [x[4] for x in traj_dual], "-^", color="#E63946", ms=5, linewidth=2.5, label="Dual Class I + II")
+    ax.set_xlabel("Number of Neoantigens in Vaccine Cocktail", fontsize=11)
+    ax.set_ylabel(f"% of Tumours Covered (≥ 1 Epitope, N={N})", fontsize=11)
+    ax.set_title("A. Population Coverage (≥ 1 Epitope)", fontsize=13, fontweight="bold")
+    ax.grid(True, linestyle="--", alpha=0.5)
+    ax.legend(loc="lower right", fontsize=9)
+    ax.set_ylim([0, 100])
 
-    # Right subplot: >= 2 epitopes per tumour (Dual CD4+/CD8+ targeting)
-    ax2.plot(xs1, [x[5] for x in traj_c1], "-o", color="#457B9D", ms=4, label="Class I Only (9-mer, CD8+)")
-    ax2.plot(xs2, [x[5] for x in traj_c2], "-s", color="#F4A261", ms=4, label="Class II Only (15-mer, CD4+)")
-    ax2.plot(xsd, [x[5] for x in traj_dual], "-^", color="#2A9D8F", ms=5, linewidth=2.5, label="Dual Class I + II (Optimal Pool)")
-    ax2.set_xlabel("Number of Neoantigens in Vaccine Cocktail", fontsize=11)
-    ax2.set_ylabel(f"% of Tumours Covered (≥ 2 Epitopes, N={N})", fontsize=11)
-    ax2.set_title("Multi-Epitope Synergy: ≥ 2 Epitopes per Tumour", fontsize=13, fontweight="bold")
-    ax2.grid(True, linestyle="--", alpha=0.5)
-    ax2.legend(loc="lower right", fontsize=10)
-    ax2.set_ylim([0, 100])
+    # Panel B: >= 2 distinct mutations per tumour (any class)
+    ax = axes[1]
+    ax.plot(xs1, [x[5] for x in traj_c1], "-o", color="#457B9D", ms=4, label="Class I Only (9-mer, CD8+)")
+    ax.plot(xs2, [x[5] for x in traj_c2], "-s", color="#F4A261", ms=4, label="Class II Only (15-mer, CD4+)")
+    ax.plot(xsd, [x[6] for x in traj_dual], "-^", color="#E63946", ms=5, linewidth=2.5, label="Dual Class I + II")
+    ax.set_xlabel("Number of Neoantigens in Vaccine Cocktail", fontsize=11)
+    ax.set_ylabel(f"% of Tumours Covered (≥ 2 Epitopes, N={N})", fontsize=11)
+    ax.set_title("B. Multi-Epitope Coverage (≥ 2 Mutations)", fontsize=13, fontweight="bold")
+    ax.grid(True, linestyle="--", alpha=0.5)
+    ax.legend(loc="lower right", fontsize=9)
+    ax.set_ylim([0, 100])
+    
+    # Panel C: Genuine CD4+/CD8+ Synergy (>= 1 Class I AND >= 1 Class II)
+    ax = axes[2]
+    ax.plot(xsd, [x[8] for x in traj_dual], "-^", color="#2A9D8F", ms=5, linewidth=2.5,
+            label="CD4+/CD8+ Synergy\n(≥1 Class I AND ≥1 Class II)")
+    ax.plot(xsd, [x[6] for x in traj_dual], "--", color="#8D99AE", ms=3, alpha=0.7,
+            label="≥2 Mutations (any class)")
+    ax.set_xlabel("Number of Neoantigens in Vaccine Cocktail", fontsize=11)
+    ax.set_ylabel(f"% of Tumours with CD4+/CD8+ Synergy (N={N})", fontsize=11)
+    ax.set_title("C. Genuine CD4+/CD8+ Synergy", fontsize=13, fontweight="bold")
+    ax.grid(True, linestyle="--", alpha=0.5)
+    ax.legend(loc="lower right", fontsize=9)
+    ax.set_ylim([0, 100])
+    
+    # Annotate Panel C with Class I/II selection counts
+    if traj_dual:
+        last = traj_dual[-1]
+        ax.annotate(f"{last[9]} Class I + {last[10]} Class II selected",
+                    xy=(len(traj_dual), last[8]), fontsize=9,
+                    xytext=(-80, 20), textcoords="offset points",
+                    arrowprops=dict(arrowstyle="->", color="#333"))
     
     plt.suptitle("Off-the-Shelf Colorectal Cancer Vaccine: Class I + Class II Synergy\n"
-                 "(Combined CD4+ Helper & CD8+ Cytotoxic T-Cell Targeting across N=586 Tumours)",
+                 f"(Class-Aware CD4+ / CD8+ Coverage Tracking across N={N} Tumours)",
                  fontsize=14, fontweight="bold", y=0.98)
-    plt.tight_layout(rect=[0, 0, 1, 0.92])
+    plt.tight_layout(rect=[0, 0, 1, 0.90])
     plt.savefig(OUT_FIG, dpi=300)
     plt.close()
     log(f"Comparative figure saved to {OUT_FIG}")

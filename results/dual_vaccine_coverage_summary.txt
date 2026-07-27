@@ -1,40 +1,77 @@
-================================================================================
+==========================================================================================
 DUAL CLASS I + CLASS II VACCINE COCKTAIL COMPARATIVE EFFICACY REPORT
 Cohort Size: N = 586 Colorectal Cancer Tumours
-================================================================================
+==========================================================================================
 
 1. TOP 15 DISCOVERED PRACTICAL CLASS II (15-MER) NEOANTIGENS
--------------------------------------------------------------------------------------
-Gene       Change       15-mer Peptide    Core9mer   HLA-DRB1       IC50(nM)  Mech               Freq 
-KRAS       p.G12D       MTEYKLVVVGADGVG   LVVVGADGV  HLA-DRB1*15:01 36.6      TCR_Contact_Loop      65
-KRAS       p.G12D       MTEYKLVVVGADGVG   LVVVGADGV  HLA-DRB1*07:01 36.6      TCR_Contact_Loop      65
-KRAS       p.G12V       MTEYKLVVVGAVGVG   LVVVGAVGV  HLA-DRB1*15:01 36.6      TCR_Contact_Loop      56
-KRAS       p.G12V       MTEYKLVVVGAVGVG   LVVVGAVGV  HLA-DRB1*07:01 36.6      TCR_Contact_Loop      56
-KRAS       p.G13D       MTEYKLVVVGAGDVG   LVVVGAGDV  HLA-DRB1*15:01 36.6      TCR_Contact_Loop      40
-KRAS       p.G13D       MTEYKLVVVGAGDVG   LVVVGAGDV  HLA-DRB1*07:01 36.6      TCR_Contact_Loop      40
-TP53       p.R175H      YKQSQHMTEVVRHCP   MTEVVRHCP  HLA-DRB1*15:01 114.3     TCR_Contact_Loop      39
-PIK3CA     p.E545K      SEITKQEKDFLWSHR   ITKQEKDFL  HLA-DRB1*15:01 156.0     TCR_Contact_Loop      38
-TP53       p.R273H      LGRNSFEVHVCACPG   EVHVCACPG  HLA-DRB1*15:01 322.2     TCR_Contact_Loop      18
-TP53       p.R273H      LGRNSFEVHVCACPG   EVHVCACPG  HLA-DRB1*07:01 322.2     TCR_Contact_Loop      18
-KRAS       p.G12C       MTEYKLVVVGACGVG   LVVVGACGV  HLA-DRB1*15:01 36.6      TCR_Contact_Loop      17
-KRAS       p.G12C       MTEYKLVVVGACGVG   LVVVGACGV  HLA-DRB1*07:01 36.6      TCR_Contact_Loop      17
-KRAS       p.A146T      LARSYGIPFIETSTK   IPFIETSTK  HLA-DRB1*15:01 126.8     TCR_Contact_Loop      17
-KRAS       p.A146T      LARSYGIPFIETSTK   IPFIETSTK  HLA-DRB1*07:01 140.6     TCR_Contact_Loop      17
-PIK3CA     p.R88Q       EAEREEFFDETRQLC   FFDETRQLC  HLA-DRB1*15:01 322.2     TCR_Contact_Loop      15
+------------------------------------------------------------------------------------------
+Gene       Change       15-mer Peptide    Core9mer   CMP  HLA-DRB1       IC50(nM)  WT_IC50  Mech               Freq 
+KRAS       p.G12D       MTEYKLVVVGADGVG   LVVVGADGV  P7   HLA-DRB1*15:01 36.6      36.6     TCR_Contact_Loop      65
+KRAS       p.G12D       MTEYKLVVVGADGVG   LVVVGADGV  P7   HLA-DRB1*07:01 36.6      36.6     TCR_Contact_Loop      65
+KRAS       p.G12V       MTEYKLVVVGAVGVG   LVVVGAVGV  P7   HLA-DRB1*15:01 36.6      36.6     TCR_Contact_Loop      56
+KRAS       p.G12V       MTEYKLVVVGAVGVG   LVVVGAVGV  P7   HLA-DRB1*07:01 36.6      36.6     TCR_Contact_Loop      56
+KRAS       p.G13D       MTEYKLVVVGAGDVG   LVVVGAGDV  P8   HLA-DRB1*15:01 36.6      36.6     TCR_Contact_Loop      40
+KRAS       p.G13D       MTEYKLVVVGAGDVG   LVVVGAGDV  P8   HLA-DRB1*07:01 36.6      36.6     TCR_Contact_Loop      40
+TP53       p.R175H      YKQSQHMTEVVRHCP   MTEVVRHCP  P7   HLA-DRB1*15:01 114.3     114.3    TCR_Contact_Loop      39
+PIK3CA     p.E545K      ISTRDPLSEITKQEK   LSEITKQEK  P6   HLA-DRB1*15:01 92.9      439.6    Agretopic_Anchor      38
+TP53       p.R273H      LGRNSFEVHVCACPG   EVHVCACPG  P3   HLA-DRB1*15:01 322.2     322.2    TCR_Contact_Loop      18
+TP53       p.R273H      LGRNSFEVHVCACPG   EVHVCACPG  P3   HLA-DRB1*07:01 322.2     322.2    TCR_Contact_Loop      18
+KRAS       p.G12C       MTEYKLVVVGACGVG   LVVVGACGV  P7   HLA-DRB1*15:01 36.6      36.6     TCR_Contact_Loop      17
+KRAS       p.G12C       MTEYKLVVVGACGVG   LVVVGACGV  P7   HLA-DRB1*07:01 36.6      36.6     TCR_Contact_Loop      17
+KRAS       p.A146T      LARSYGIPFIETSTK   IPFIETSTK  P8   HLA-DRB1*15:01 126.8     126.8    TCR_Contact_Loop      17
+KRAS       p.A146T      LARSYGIPFIETSTK   IPFIETSTK  P8   HLA-DRB1*07:01 140.6     140.6    TCR_Contact_Loop      17
+PIK3CA     p.R88Q       EAEREEFFDETRQLC   FFDETRQLC  P7   HLA-DRB1*15:01 322.2     322.2    TCR_Contact_Loop      15
 
 2. VACCINE COCKTAIL POPULATION COVERAGE AT 10, 20, AND 30 EPITOPES
---------------------------------------------------------------------------------
+------------------------------------------------------------------------------------------
 Strategy                  | --- 10 Epitopes ---  | --- 20 Epitopes ---  | --- 30 Epitopes --- 
                           | ge1 (%)   ge2 (%)    | ge1 (%)   ge2 (%)    | ge1 (%)   ge2 (%)   
-Class I Only (9-mer)      |   44.9%      9.9%    |   55.8%     16.0%    |   60.9%     18.9%
-Class II Only (15-mer)    |   44.7%      7.7%    |   53.4%     14.3%    |   57.5%     15.0%
-Dual Optimal Cocktail     |   45.6%     10.1%    |   57.8%     17.4%    |   63.1%     20.0%
+Class I Only (9-mer)      |   45.1%      9.2%    |   55.8%     16.7%    |   60.9%     18.6%
+Class II Only (15-mer)    |   44.7%      7.8%    |   53.4%     14.3%    |   57.5%     15.0%
+Dual Optimal Cocktail     |   45.6%      8.9%    |   57.8%     17.9%    |   63.1%     20.0%
 
-3. WHY THE OPTIMAL DUAL COCKTAIL DRASTICALLY IMPROVES BIOLOGICAL PLAUSIBILITY
---------------------------------------------------------------------------------
+3. GENUINE CD4+ / CD8+ SYNERGY (>= 1 Class I AND >= 1 Class II per tumour)
+------------------------------------------------------------------------------------------
+Step  Gene         Change       Class    | Any    | ge2    | Synergy  | #C1  #C2 
+    1 KRAS         p.G12D       ClassI   |  11.1% |   0.0% |    0.0%  |    1    0
+    2 KRAS         p.G12V       ClassI   |  20.6% |   0.0% |    0.0%  |    2    0
+    3 KRAS         p.G13D       ClassII  |  27.3% |   0.2% |    0.2%  |    2    1
+    4 TP53         p.R175H      ClassII  |  31.1% |   3.1% |    2.6%  |    2    2
+    5 PIK3CA       p.E545K      ClassI   |  34.1% |   6.1% |    3.9%  |    3    2
+    6 KRAS         p.A146T      ClassII  |  36.9% |   6.3% |    4.1%  |    3    3
+    7 KRAS         p.G12C       ClassII  |  39.2% |   6.8% |    4.6%  |    3    4
+    8 TP53         p.R248Q      ClassI   |  41.5% |   7.5% |    4.9%  |    4    4
+    9 KRAS         p.G12S       ClassI   |  43.5% |   7.5% |    4.9%  |    5    4
+   10 PIK3CA       p.H1047R     ClassI   |  45.6% |   8.9% |    5.3%  |    6    4
+   11 TP53         p.R282W      ClassI   |  47.4% |  10.2% |    5.6%  |    7    4
+   12 KRAS         p.G12A       ClassI   |  49.1% |  10.4% |    5.6%  |    8    4
+   13 TP53         p.R248W      ClassI   |  50.7% |  11.3% |    6.3%  |    9    4
+   14 PIK3CA       p.R88Q       ClassI   |  52.0% |  12.5% |    6.7%  |   10    4
+   15 TP53         p.R273H      ClassII  |  53.4% |  14.0% |    7.7%  |   10    5
+   16 TP53         p.R273C      ClassI   |  54.6% |  15.0% |    7.8%  |   11    5
+   17 NRAS         p.Q61K       ClassI   |  55.6% |  15.7% |    8.0%  |   12    5
+   18 SMAD4        p.R361H      ClassI   |  56.5% |  16.6% |    8.2%  |   13    5
+   19 NRAS         p.G12D       ClassI   |  57.2% |  17.1% |    8.4%  |   14    5
+   20 PIK3CA       p.E542K      ClassII  |  57.8% |  17.9% |    9.0%  |   14    6
+   21 UPF2         p.E1033D     ClassI   |  58.5% |  17.9% |    9.0%  |   15    6
+   22 FBXW7        p.R465H      ClassII  |  59.2% |  18.8% |   10.1%  |   15    7
+   23 TP53         p.C275Y      ClassI   |  59.7% |  18.9% |   10.1%  |   16    7
+   24 TBC1D22A     p.A458T      ClassI   |  60.2% |  18.9% |   10.1%  |   17    7
+   25 KRAS         p.K117N      ClassII  |  60.8% |  19.5% |   10.4%  |   17    8
+   26 TFCP2        p.R339Q      ClassI   |  61.3% |  19.8% |   10.4%  |   18    8
+   27 TP53         p.G266V      ClassI   |  61.8% |  19.8% |   10.4%  |   19    8
+   28 IRGQ         p.R214H      ClassII  |  62.3% |  19.8% |   10.4%  |   19    9
+   29 KRAS         p.Q61K       ClassI   |  62.8% |  20.0% |   10.4%  |   20    9
+   30 PIK3CA       p.E545A      ClassII  |  63.1% |  20.0% |   10.4%  |   20   10
+
+4. WHY CLASS-AWARE TRACKING MATTERS
+------------------------------------------------------------------------------------------
 a) Immunological Synergy: CD4+ T-cell help (via MHC Class II 15-mers) is required
    to prime, sustain, and prevent exhaustion of CD8+ cytotoxic T-cells (via MHC Class I 9-mers).
-b) Overcoming Mutual Exclusivity without Forced Ratios: By prioritizing the mathematically
-   optimal candidates from the combined Class I + II pool, the algorithm naturally selects
-   a 60% Class II / 40% Class I mixture in the Top 10, maximizing both population coverage (63.1%)
-   and multi-epitope CD4+/CD8+ synergy (20.0%) without any quality degradation.
+b) Class-Aware vs Naive Tracking: The naive 'ge2' metric counts tumours hit by >= 2 distinct
+   mutations, but does not distinguish whether both hits are Class I (no CD4+ help) or one
+   is Class I and one is Class II (genuine CD4+/CD8+ synergy). The 'Synergy' metric
+   specifically counts tumours with >= 1 Class I AND >= 1 Class II epitope.
+c) Stated Limitation: The MHC-II binding predictions use a simplified 4-anchor-position
+   PSSM (P1, P4, P6, P9). Non-anchor positions (P2, P3, P5, P7, P8) are not scored.
+   A full SMM-align or NetMHCIIpan predictor would provide more accurate binding estimates.
