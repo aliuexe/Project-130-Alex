@@ -1,0 +1,14 @@
+GENE-EXPRESSION DATASET METADATA (Section 6)
+Source study: coadread_tcga_pan_can_atlas_2018 (TCGA Colorectal, PanCancer Atlas), via cBioPortal.
+Source file: data_mrna_seq_v2_rsem.txt (mRNA Expression, RSEM, batch-normalized from Illumina HiSeq RNASeqV2).
+Assay: RNA-seq (Illumina HiSeq RNASeqV2), NOT microarray.
+GEO accession: not applicable - matched TCGA RNA-seq used (same samples as mutation cohort where overlapping).
+Sequencing platform: Illumina HiSeq 2000 (RNASeqV2).
+Number of tumour samples (expression): 592
+Number of normal samples: provided separately in normals/ subfolder; not used for tumour TPM matrix.
+Whether TPM was downloaded or calculated: CALCULATED. Source values were RSEM normalized estimates (per-sample sum ~1.8e7), converted to TPM by rescaling each sample to sum to 1e6.
+Gene identifier type: HGNC/Hugo gene symbols (Entrez IDs also present in source).
+Method used to map identifiers to gene symbols: source file is already keyed on Hugo_Symbol; no external mapping required.
+Method used to handle duplicated gene symbols: TPM values summed across duplicate rows to one row per unique symbol; 7 duplicate rows collapsed.
+Genes in final TPM matrix: 20511
+Percentage missing expression values: 5.6364%

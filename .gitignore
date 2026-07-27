@@ -1,0 +1,27 @@
+# Large data files exceeding GitHub's file size limits (50MB - 100MB+)
+results/01_mutation_by_sample.tsv
+results/02_gene_by_sample_TPM.tsv
+results/03_integrated_mutation_expression.tsv
+results/04_neoantigen_predictions.tsv
+results/04_neoantigen_predictions.tsv.new
+results/bigmhc_scores_9mer.tsv
+results/peptides_all.tsv
+results/peptide_annotation.tsv
+results/mhcflurry_scores_9mer.tsv
+results/longtail_candidates.tsv
+results/cooccurrence_counts_matrix.tsv
+results/gene_level_tpm.tsv
+results/_bigmhc_tmp/
+cohortMAF.2026-07-15.maf.gz
+data_mrna_seq_v2_rsem.txt
+uniprotkb_proteome_UP000005640_*.fasta
+coadread_tcga_pan_can_atlas_2018/
+
+# Temporary and download files
+bigmhc/
+*.zip
+~$*
+get-pip.py
+__pycache__/
+*.pyc
+.DS_Store

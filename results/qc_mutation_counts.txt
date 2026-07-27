@@ -1,0 +1,7 @@
+MUTATION PROCESSING QC (Section 8)
+Reference assembly: GRCh38/hg38
+Mutation records before filtering: 310472
+Mutation records after filtering:  184574
+Distinct mutations (rows in matrix): 153996
+Unique mutated genes: 17585
+Tumour samples: 586

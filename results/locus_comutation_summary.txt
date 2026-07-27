@@ -1,0 +1,34 @@
+LOCUS-LEVEL DRIVER CO-MUTATION (colorectal, TCGA-COAD)
+Level = specific mutation (gene, protein change); e.g. KRAS p.G12D + TP53 p.R175H.
+Samples: ALL 586 tumours. NO hypermutator filtering applied anywhere.
+Hypermutators (burden >= 200 SNVs) present in the cohort: 91 (15.5%) - REPORTED, not removed.
+Driver loci tested (recurrence >= 3): 65.
+
+Top 20 co-occurring specific-locus pairs (by tumours carrying BOTH exact mutations):
+            LocusA           LocusB  both  hyper nonhyper  %hyp    OR   FDR_co  rel
+      TP53 p.R175H      KRAS p.G12V    10     0      10     0   3.84 6.0e-01  n.s.
+   PIK3CA p.H1047R     BRAF p.V640E     9     9       0   100  10.20 2.4e-02  Co-occurring
+       KRAS p.G13D   PIK3CA p.E545K     8     1       7    12   4.43 6.4e-01  n.s.
+       KRAS p.G12V   PIK3CA p.E545K     6     0       6     0   1.97 1.0e+00  n.s.
+       KRAS p.G12D   PIK3CA p.E545K     6     1       5    17   1.65 1.0e+00  n.s.
+      TP53 p.R282W      KRAS p.G12V     4     0       4     0   2.67 1.0e+00  n.s.
+      TP53 p.R175H      KRAS p.G12D     4     1       3    25   1.00 1.0e+00  n.s.
+     PIK3CA p.R88Q     PTEN p.R130Q     3     3       0   100  63.78 5.5e-02  n.s.
+    PIK3CA p.E545K    PCBP1 p.L100Q     3     0       3     0   6.27 1.0e+00  n.s.
+     FBXW7 p.R465C     BRAF p.V640E     3     3       0   100   5.88 1.0e+00  n.s.
+      TP53 p.R175H   PIK3CA p.E542K     3     0       3     0   4.91 1.0e+00  n.s.
+       KRAS p.G13D   PIK3CA p.E542K     3     1       2    33   4.77 1.0e+00  n.s.
+       KRAS p.G12D    PCBP1 p.L100Q     3     0       3     0   3.38 1.0e+00  n.s.
+       KRAS p.G12D    FBXW7 p.R465H     3     0       3     0   3.02 1.0e+00  n.s.
+       KRAS p.G12D   PIK3CA p.E542K     3     0       3     0   2.73 1.0e+00  n.s.
+      TP53 p.R273H     BRAF p.V640E     3     1       2    33   2.42 1.0e+00  n.s.
+      TP53 p.R273H      KRAS p.G12V     3     0       3     0   2.18 1.0e+00  n.s.
+       KRAS p.G12V  PIK3CA p.H1047R     3     0       3     0   1.92 1.0e+00  n.s.
+       KRAS p.G12D  PIK3CA p.H1047R     3     1       2    33   1.61 1.0e+00  n.s.
+      TP53 p.R175H      KRAS p.G13D     3     0       3     0   1.30 1.0e+00  n.s.
+
+Statistically significant co-occurring locus pairs (FDR<0.05): 1
+  PIK3CA p.H1047R + BRAF p.V640E: both=9 (hyper=9, non-hyper=0), OR=10.20, FDR=2.38e-02
+
+Across all co-occurring locus pairs, 113/364 co-mutation events (31%) occur in hypermutated tumours (which are 16% of the cohort).
+Interpretation: a specific-locus co-mutation concentrated in non-hypermutated tumours is the stronger candidate for a real, generalisable association; one seen only in hypermutators may reflect burden. Either way NOTHING is filtered - all are kept.

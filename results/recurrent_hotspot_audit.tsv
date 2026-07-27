@@ -1,0 +1,44 @@
+# Selection uses ALL samples + ALL genes, per-locus (BigMHC).
+GeneName	ProteinChange	Recurrence	ClonalClass	medianVAF	BestMut_EL	BestAllele	PresentationClass	WT_EL	GeneLevelTPM	GeneClass	Status	DropReason
+KRAS	p.G12D	65	Clonal	0.3677	0.9990	HLA-A*03:01	Strong	0.2402	66.7	Other	CANDIDATE	passes all gates
+KRAS	p.G12V	56	Clonal	0.4338	0.9990	HLA-A*03:01	Strong	0.2402	66.7	Other	CANDIDATE	passes all gates
+BRAF	p.V640E	51	Clonal	0.3222	NA	NA	NA	NA	5.3	Other	Dropped	no scorable 9-mer (nonstandard AA)
+KRAS	p.G13D	40	Clonal	0.4062	0.9990	HLA-A*02:01	Strong	0.9990	66.7	Other	Dropped	wild-type also presented (BigMHC_EL >= 0.50)
+TP53	p.R175H	39	Clonal	0.6562	0.6619	HLA-A*01:01	Weak	0.4074	127.4	TumourSuppressor	CANDIDATE	passes all gates
+PIK3CA	p.E545K	38	Clonal	0.2875	0.6791	HLA-A*01:01	Weak	0.6126	14.0	Other	Dropped	wild-type also presented (BigMHC_EL >= 0.50)
+TP53	p.R282W	20	Clonal	0.6912	0.6063	HLA-A*02:01	Weak	0.5221	127.4	TumourSuppressor	Dropped	wild-type also presented (BigMHC_EL >= 0.50)
+PIK3CA	p.H1047R	20	Clonal	0.3214	0.6779	HLA-A*02:01	Weak	0.7459	14.0	Other	Dropped	wild-type also presented (BigMHC_EL >= 0.50)
+TP53	p.R273H	18	Clonal	0.576	0.8393	HLA-A*03:01	Strong	0.9599	127.4	TumourSuppressor	Dropped	wild-type also presented (BigMHC_EL >= 0.50)
+KRAS	p.G12C	17	Clonal	0.4058	0.7862	HLA-A*01:01	Strong	0.3133	66.7	Other	CANDIDATE	passes all gates
+KRAS	p.A146T	17	Clonal	0.4425	0.9797	HLA-A*01:01	Strong	0.7010	66.7	Other	Dropped	wild-type also presented (BigMHC_EL >= 0.50)
+TP53	p.R248Q	17	Clonal	0.5699	0.9838	HLA-A*03:01	Strong	0.0551	127.4	TumourSuppressor	CANDIDATE	passes all gates
+PIK3CA	p.R88Q	15	Clonal	0.3371	0.9818	HLA-A*01:01	Strong	0.3806	14.0	Other	CANDIDATE	passes all gates
+TP53	p.R248W	14	Clonal	0.5762	0.9391	HLA-A*01:01	Strong	0.1851	127.4	TumourSuppressor	CANDIDATE	passes all gates
+PIK3CA	p.E542K	13	Clonal	0.3125	0.8039	HLA-A*02:01	Strong	0.6535	14.0	Other	Dropped	wild-type also presented (BigMHC_EL >= 0.50)
+TP53	p.R273C	13	Clonal	0.4483	0.9630	HLA-A*02:01	Strong	0.5231	127.4	TumourSuppressor	Dropped	wild-type also presented (BigMHC_EL >= 0.50)
+KRAS	p.G12S	12	Clonal	0.5123	0.9990	HLA-A*03:01	Strong	0.2402	66.7	Other	CANDIDATE	passes all gates
+FBXW7	p.R465H	12	Clonal	0.3577	0.9990	HLA-A*03:01	Strong	0.7280	15.5	TumourSuppressor	Dropped	wild-type also presented (BigMHC_EL >= 0.50)
+SMAD4	p.R361H	11	Clonal	0.6501	0.8622	HLA-A*03:01	Strong	0.1134	54.0	TumourSuppressor	CANDIDATE	passes all gates
+PCBP1	p.L100Q	11	Clonal	0.3333	0.9990	HLA-A*01:01	Strong	0.0125	384.2	Other	CANDIDATE	passes all gates
+KRAS	p.G12A	11	Clonal	0.4314	0.9990	HLA-A*02:01	Strong	0.9990	66.7	Other	Dropped	wild-type also presented (BigMHC_EL >= 0.50)
+NRAS	p.Q61K	10	Clonal	0.4824	0.7426	HLA-A*01:01	Strong	0.6779	99.6	Other	Dropped	wild-type also presented (BigMHC_EL >= 0.50)
+FBXW7	p.R465C	9	Clonal	0.3391	0.7165	HLA-A*01:01	Strong	0.6031	15.5	TumourSuppressor	Dropped	wild-type also presented (BigMHC_EL >= 0.50)
+NRAS	p.G12D	8	Clonal	0.428	0.9990	HLA-A*03:01	Strong	0.2402	99.6	Other	CANDIDATE	passes all gates
+TP53	p.G245S	7	Clonal	0.5682	0.9990	HLA-A*02:01	Strong	0.9990	127.4	TumourSuppressor	Dropped	wild-type also presented (BigMHC_EL >= 0.50)
+ERBB3	p.V104M	6	Clonal	0.3239	0.9974	HLA-A*02:01	Strong	0.3058	352.3	Other	CANDIDATE	passes all gates
+GTF2IRD2	p.Y119H	6	Subclonal	0.1062	0.7207	HLA-A*01:01	Strong	0.9350	11.6	Other	Dropped	wild-type also presented (BigMHC_EL >= 0.50); subclonal
+FBXW7	p.S582L	6	Clonal	0.3753	0.9990	HLA-A*03:01	Strong	0.0738	15.5	TumourSuppressor	CANDIDATE	passes all gates
+KRAS	p.K117N	6	Clonal	0.3718	0.8414	HLA-A*01:01	Strong	0.7779	66.7	Other	Dropped	wild-type also presented (BigMHC_EL >= 0.50)
+TOP2B	p.R656H	5	Clonal	0.3065	0.8232	HLA-A*03:01	Strong	0.0857	147.5	Other	CANDIDATE	passes all gates
+PTEN	p.R130Q	5	Clonal	0.3256	0.9990	HLA-A*01:01	Strong	0.6292	72.1	TumourSuppressor	Dropped	wild-type also presented (BigMHC_EL >= 0.50)
+PPP2R1A	p.R183W	5	Clonal	0.5068	0.6073	HLA-A*02:01	Weak	0.1361	360.6	Other	CANDIDATE	passes all gates
+DNMT1	p.E432K	5	Subclonal	0.2252	0.9890	HLA-A*02:01	Strong	0.3869	106.1	Other	Dropped	subclonal
+TFCP2	p.R339Q	5	Clonal	0.3242	0.8207	HLA-A*03:01	Strong	0.1100	37.6	Other	CANDIDATE	passes all gates
+GP2	p.S41L	5	Subclonal	0.2237	0.9990	HLA-A*02:01	Strong	0.9990	0.2	Other	Dropped	wild-type also presented (BigMHC_EL >= 0.50); expression <10 TPM; subclonal
+CFAP251	p.E1009K	5	Subclonal	0.2424	0.9990	HLA-A*02:01	Strong	0.8190	NA	Other	Dropped	wild-type also presented (BigMHC_EL >= 0.50); expression <10 TPM; subclonal
+TGFBR1	p.S241L	5	Subclonal	0.2184	0.8596	HLA-A*02:01	Strong	0.5782	52.8	Other	Dropped	wild-type also presented (BigMHC_EL >= 0.50); subclonal
+MYT1	p.E226K	5	Clonal	0.2727	0.6947	HLA-A*03:01	Weak	0.0974	0.2	Other	Dropped	expression <10 TPM
+MAGEC1	p.K1046N	5	Clonal	0.4231	0.9990	HLA-A*01:01	Strong	0.9990	0.0	Other	Dropped	wild-type also presented (BigMHC_EL >= 0.50); expression <10 TPM
+PAX3	p.T424M	5	Clonal	0.2759	0.6712	HLA-A*02:01	Weak	0.6745	0.0	Other	Dropped	wild-type also presented (BigMHC_EL >= 0.50); expression <10 TPM
+TCF7L2	p.R488C	5	Clonal	0.4394	0.8424	HLA-A*03:01	Strong	0.7977	59.7	Other	Dropped	wild-type also presented (BigMHC_EL >= 0.50)
+DNAJC24	p.E61K	5	Clonal	0.2533	0.9990	HLA-A*02:01	Strong	0.9766	11.3	Other	Dropped	wild-type also presented (BigMHC_EL >= 0.50)

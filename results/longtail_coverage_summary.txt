@@ -1,0 +1,12 @@
+LONG-TAIL CUMULATIVE POPULATION COVERAGE (TCGA-COAD, BigMHC)
+Total tumours (N): 586
+Quality candidate mutations (any recurrence): 39304
+  of which private (in exactly 1 tumour): 38191
+
+  + recurrent (>=10)   (   19 mutations): 321/586 =  54.8%
+  + moderate (5-9)     (   12 mutations): 346/586 =  59.0%
+  + low (2-4)          ( 1082 mutations): 482/586 =  82.3%
+  + private (=1)       (38191 mutations): 585/586 =  99.8%
+
+Shared-only (recurrence >=2) coverage: 482/586 = 82.3%
+Including the private long tail:        585/586 = 99.8%

@@ -1,0 +1,47 @@
+================================================================
+BASIC DATA QUALITY CONTROL REPORT (Section 8)
+Project 130 - Colorectal cancer (TCGA-COAD)
+================================================================
+
+Mutations before filtering: 310472
+Mutations after filtering:  184574
+Distinct mutations (matrix rows): 153996
+Unique mutated genes: 17585
+Tumour samples (mutation matrix): 586
+Percentage missing expression values: 5.6364%
+Gene identifier consistency: both matrices keyed on HGNC/Hugo gene symbols; integration is a symbol-level join.
+Reference genome assembly consistency: all mutation coordinates are GRCh38/hg38 (verified in script 01); no mixing of assemblies.
+
+Distribution of GeneLevelTPM (non-NA):
+count    140360.000000
+mean         42.861504
+std         132.328278
+min           0.000000
+25%           0.318150
+50%           9.419600
+75%          44.944900
+max        5778.885700
+
+Ten most frequently mutated genes (sum of mutation occurrences across samples):
+  TTN          693
+  MUC16        335
+  SYNE1        279
+  TP53         258
+  KRAS         250
+  FAT4         202
+  RYR2         173
+  PIK3CA       171
+  NEB          150
+  OBSCN        146
+
+Ten most highly expressed mutated genes (GeneLevelTPM = median tumour TPM):
+  CEACAM5      5778.89
+  ACTB         5584.43
+  EEF1A1       4675.75
+  ACTG1        4510.80
+  GAPDH        3745.77
+  EEF2         3413.50
+  FTL          2759.42
+  KRT8         2756.16
+  RPS6         2510.34
+  RPL8         2499.04

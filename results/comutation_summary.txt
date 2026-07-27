@@ -1,0 +1,93 @@
+DRIVER-GENE CO-MUTATION SUMMARY (colorectal, TCGA-COAD)
+Tumour samples: 586
+Driver genes analysed (34): APC, TP53, KRAS, PIK3CA, FBXW7, SMAD4, TCF7L2, NRAS, SMAD2, CTNNB1, BRAF, SOX9, ARID1A, AMER1, ATM, KMT2C, KMT2D, ERBB2, ERBB3, PTEN, ACVR2A, GNAS, BMPR1A, TGFBR2, RNF43, B2M, POLE, MSH6, CASP8, ELF3, PCBP1, AXIN2, MAP2K4, CDC27
+
+Per-gene mutation frequency (samples):
+  TP53      246 (42.0%) [has candidate neoantigen]
+  KRAS      245 (41.8%) [has candidate neoantigen]
+  PIK3CA    145 (24.7%) [has candidate neoantigen]
+  BRAF       61 (10.4%)
+  SMAD4      55 ( 9.4%) [has candidate neoantigen]
+  FBXW7      51 ( 8.7%) [has candidate neoantigen]
+  KMT2D      45 ( 7.7%)
+  APC        41 ( 7.0%) [has candidate neoantigen]
+  ATM        39 ( 6.7%) [has candidate neoantigen]
+  KMT2C      39 ( 6.7%)
+  NRAS       36 ( 6.1%) [has candidate neoantigen]
+  CTNNB1     31 ( 5.3%) [has candidate neoantigen]
+  POLE       30 ( 5.1%) [has candidate neoantigen]
+  TCF7L2     27 ( 4.6%) [has candidate neoantigen]
+  ERBB3      26 ( 4.4%) [has candidate neoantigen]
+  PCBP1      25 ( 4.3%) [has candidate neoantigen]
+  SOX9       20 ( 3.4%)
+  AMER1      19 ( 3.2%)
+  ERBB2      19 ( 3.2%) [has candidate neoantigen]
+  RNF43      19 ( 3.2%)
+  MSH6       19 ( 3.2%)
+  MAP2K4     19 ( 3.2%) [has candidate neoantigen]
+  ARID1A     17 ( 2.9%)
+  PTEN       17 ( 2.9%) [has candidate neoantigen]
+  SMAD2      15 ( 2.6%) [has candidate neoantigen]
+  GNAS       14 ( 2.4%)
+  AXIN2      13 ( 2.2%)
+  ACVR2A     11 ( 1.9%) [has candidate neoantigen]
+  TGFBR2     11 ( 1.9%)
+  CASP8       9 ( 1.5%)
+  CDC27       9 ( 1.5%) [has candidate neoantigen]
+  BMPR1A      7 ( 1.2%)
+  B2M         5 ( 0.9%)
+  ELF3        3 ( 0.5%)
+
+Per-tumour number of co-mutated driver genes:
+  0 drivers: 76 tumours
+  1 drivers: 152 tumours
+  2 drivers: 155 tumours
+  3 drivers: 91 tumours
+  4 drivers: 51 tumours
+  5 drivers: 22 tumours
+  6 drivers: 15 tumours
+  7 drivers: 9 tumours
+  8 drivers: 1 tumours
+  9 drivers: 2 tumours
+  10 drivers: 1 tumours
+  11 drivers: 1 tumours
+  12 drivers: 2 tumours
+  13 drivers: 3 tumours
+  14 drivers: 2 tumours
+  15 drivers: 0 tumours
+  16 drivers: 3 tumours
+
+Tumours with >=2 co-mutated drivers (doubles+): 358 (61.1%)
+Tumours with >=3 co-mutated drivers (triples+): 203 (34.6%)
+
+Top 12 co-occurring driver pairs (by tumours carrying both):
+  TP53   +KRAS     both=105  OR=1.06  FDR_co=5.77e-01  n.s.
+  KRAS   +PIK3CA   both= 84  OR=2.39  FDR_co=1.27e-04  Co-occurring
+  TP53   +PIK3CA   both= 43  OR=0.50  FDR_co=1.00e+00  Mutually exclusive
+  KRAS   +SMAD4    both= 31  OR=1.90  FDR_co=5.94e-02  n.s.
+  PIK3CA +SMAD4    both= 24  OR=2.63  FDR_co=8.10e-03  Co-occurring
+  KRAS   +FBXW7    both= 23  OR=1.16  FDR_co=5.55e-01  n.s.
+  PIK3CA +KMT2D    both= 22  OR=3.24  FDR_co=2.83e-03  Co-occurring
+  PIK3CA +FBXW7    both= 21  OR=2.33  FDR_co=2.55e-02  Co-occurring
+  PIK3CA +BRAF     both= 21  OR=1.71  FDR_co=1.31e-01  n.s.
+  TP53   +SMAD4    both= 20  OR=0.78  FDR_co=1.00e+00  n.s.
+  KRAS   +PCBP1    both= 19  OR=4.44  FDR_co=4.69e-03  Co-occurring
+  KRAS   +KMT2D    both= 18  OR=0.93  FDR_co=8.52e-01  n.s.
+
+Significant mutually exclusive driver pairs (FDR<0.05):
+  KRAS   /BRAF     both=  3  OR=0.07  FDR_excl=5.27e-09
+  KRAS   /NRAS     both=  4  OR=0.18  FDR_excl=1.15e-02
+  TP53   /BRAF     both= 12  OR=0.31  FDR_excl=1.81e-02
+  TP53   /PIK3CA   both= 43  OR=0.50  FDR_excl=4.54e-02
+
+Top 10 co-occurring driver triples (by tumours carrying all three):
+  TP53   +KRAS   +PIK3CA   all3= 29  enrich=1.1x  FDR=2.90e-01
+  KRAS   +PIK3CA +SMAD4    all3= 16  enrich=2.8x  FDR=1.81e-03
+  TP53   +KRAS   +SMAD4    all3= 11  enrich=1.1x  FDR=3.97e-01
+  APC    +ATM    +POLE     all3= 10  enrich=71.6x  FDR=2.27e-12
+  TP53   +KRAS   +FBXW7    all3= 10  enrich=1.1x  FDR=4.28e-01
+  KRAS   +PIK3CA +FBXW7    all3= 10  enrich=1.9x  FDR=6.72e-02
+  PIK3CA +KMT2D  +POLE     all3= 10  enrich=17.5x  FDR=7.22e-08
+  APC    +PIK3CA +POLE     all3=  9  enrich=17.3x  FDR=3.56e-07
+  APC    +KMT2C  +POLE     all3=  9  enrich=64.4x  FDR=2.40e-11
+  TP53   +PIK3CA +SMAD4    all3=  9  enrich=1.6x  FDR=1.50e-01

@@ -1,0 +1,3 @@
+[05] Using protein FASTA: uniprotkb_proteome_UP000005640_AND_revi_2026_07_20.fasta
+[05] Loaded 20416 protein sequences
+[05] Reading VEP-annotated MAF: /tmp/coad.maf
