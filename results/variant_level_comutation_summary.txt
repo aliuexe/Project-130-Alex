@@ -1,0 +1,98 @@
+================================================================================
+VARIANT-LEVEL (LOCUS-SPECIFIC) CO-MUTATION & TTN HOTSPOT ANALYSIS REPORT
+Project 130 - Colorectal Cancer (TCGA-COAD, N = 586 Tumours)
+================================================================================
+
+--------------------------------------------------------------------------------
+1. TOP 15 MOST RECURRENT INDIVIDUAL MISSENSE VARIANTS IN ENTIRE COHORT
+--------------------------------------------------------------------------------
+Rank  Variant ID           Tumour Count (N=586)   Percentage     
+1     KRAS p.G12D          65                     11.09%
+2     KRAS p.G12V          56                     9.56%
+3     BRAF p.V640E         51                     8.70%
+4     KRAS p.G13D          40                     6.83%
+5     TP53 p.R175H         39                     6.66%
+6     PIK3CA p.E545K       38                     6.48%
+7     PIK3CA p.H1047R      20                     3.41%
+8     TP53 p.R282W         20                     3.41%
+9     TP53 p.R273H         18                     3.07%
+10    KRAS p.G12C          17                     2.90%
+11    KRAS p.A146T         17                     2.90%
+12    TP53 p.R248Q         17                     2.90%
+13    PIK3CA p.R88Q        15                     2.56%
+14    TP53 p.R248W         14                     2.39%
+15    PIK3CA p.E542K       13                     2.22%
+
+--------------------------------------------------------------------------------
+2. TOP 15 MOST RECURRENT INDIVIDUAL MISSENSE VARIANTS ON TTN
+--------------------------------------------------------------------------------
+Rank  TTN Variant ID            Tumour Count (N=586)   Percentage     
+1     TTN p.E26065K             3                      0.51%
+2     TTN p.R23722C             2                      0.34%
+3     TTN p.T4725M              2                      0.34%
+4     TTN p.R32905H             2                      0.34%
+5     TTN p.R328H               2                      0.34%
+6     TTN p.P29821S             2                      0.34%
+7     TTN p.S24704F             2                      0.34%
+8     TTN p.R30392C             2                      0.34%
+9     TTN p.R18985Q             2                      0.34%
+10    TTN p.E16119D             2                      0.34%
+11    TTN p.R13829H             2                      0.34%
+12    TTN p.R13467Q             2                      0.34%
+13    TTN p.A10806T             2                      0.34%
+14    TTN p.R808C               2                      0.34%
+15    TTN p.T22746S             1                      0.17%
+
+--------------------------------------------------------------------------------
+3. TOP 15 CO-OCCURRING VARIANT PAIRS IN ALL TUMOURS (N=586)
+--------------------------------------------------------------------------------
+Variant A          nA   Variant B          nB   nBoth  Exp    OR_586   p_val_586  nBoth_495 
+CFAP251 p.E1009K      5 MR1 p.S46L            4      4   0.03  3489.00   1.03e-09          0
+GP2 p.S41L            5 C2CD5 p.R181Q         4      4   0.03  3489.00   1.03e-09          0
+ABCA12 p.R1515Q       3 CMKLR1 p.K355N        3      3   0.02  8169.00   3.00e-08          0
+ABCA12 p.R1515Q       3 DIS3 p.R382Q          3      3   0.02  8169.00   3.00e-08          0
+ABCA12 p.R1515Q       3 DNAH5 p.R67I          3      3   0.02  8169.00   3.00e-08          0
+ABCA12 p.R1515Q       3 LRCH1 p.R152Q         3      3   0.02  8169.00   3.00e-08          0
+ABCA12 p.R1515Q       3 NBEA p.E1710K         3      3   0.02  8169.00   3.00e-08          0
+ABCA12 p.R1515Q       3 PPP1R9A p.R24Q        3      3   0.02  8169.00   3.00e-08          0
+ABCA5 p.R1476Q        3 PLOD2 p.R495Q         3      3   0.02  8169.00   3.00e-08          0
+ARHGAP32 p.E1253K     3 JCHAIN p.R61Q         3      3   0.02  8169.00   3.00e-08          0
+ARHGAP32 p.E1253K     3 NCAM1 p.R450W         3      3   0.02  8169.00   3.00e-08          0
+ASXL3 p.F311L         3 DICER1 p.R944Q        3      3   0.02  8169.00   3.00e-08          0
+B3GALNT1 p.R145Q      3 GABRA4 p.R460Q        3      3   0.02  8169.00   3.00e-08          0
+B3GALNT1 p.R145Q      3 ZNF625 p.R235Q        3      3   0.02  8169.00   3.00e-08          0
+BACH1 p.R538Q         3 G3BP1 p.R307Q         3      3   0.02  8169.00   3.00e-08          0
+
+--------------------------------------------------------------------------------
+4. TOP 15 CO-OCCURRING VARIANT PAIRS IN STANDARD TUMOURS (N=495, TMB < 200)
+--------------------------------------------------------------------------------
+Variant A          nA   Variant B          nB   nBoth_495  OR_495   p_val_495 
+PIK3CA p.H1047Y       3 PIK3CA p.V344G        3          2   546.11   7.35e-05
+MAGEC1 p.K1046N       4 TP53 p.C275Y          4          2   195.80   2.93e-04
+TP53 p.R273H         17 DCAF12L2 p.P334L      3          2    51.34   3.27e-03
+KRAS p.G12V          56 TP53 p.R175H         36         10     3.52   3.79e-03
+KRAS p.G13D          33 PIK3CA p.E545K       36          7     4.16   6.33e-03
+TP53 p.R273H         17 FBXW7 p.S582L         5          2    21.91   1.05e-02
+TP53 p.R175H         36 NRAS p.G13R           3          2    22.15   1.47e-02
+PIK3CA p.E545K       36 CHD4 p.R962H          3          2    22.15   1.47e-02
+PIK3CA p.E545K       36 DCAF12L2 p.P334L      3          2    22.15   1.47e-02
+TP53 p.R248W         13 NRAS p.G12D           8          2    15.94   1.63e-02
+KRAS p.G12D          55 PIK3CA p.E726K        3          2    13.69   3.38e-02
+KRAS p.G12D          55 PIK3CA p.H1047Y       3          2    13.69   3.38e-02
+KRAS p.G12D          55 PCBP1 p.L102P         3          2    13.69   3.38e-02
+KRAS p.G12D          55 PIK3CA p.V344G        3          2    13.69   3.38e-02
+KRAS p.G12D          55 PIK3CA p.Q546K        3          2    13.69   3.38e-02
+
+--------------------------------------------------------------------------------
+5. MOST CO-OCCURRING VARIANT PAIRS INVOLVING A TTN VARIANT
+--------------------------------------------------------------------------------
+TTN Variant Pair                       nBoth_586  OR_586   p_val_586  nBoth_495  p_val_495 
+DNAH5 p.R982H + TTN p.E26065K                   2   647.22   5.24e-05          0   0.00e+00
+LRP6 p.R675Q + TTN p.E26065K                    2   647.22   5.24e-05          0   0.00e+00
+LVRN p.E460D + TTN p.E26065K                    2   647.22   5.24e-05          0   0.00e+00
+MACF1 p.F722L + TTN p.E26065K                   2   647.22   5.24e-05          0   0.00e+00
+MBOAT2 p.R43Q + TTN p.E26065K                   2   647.22   5.24e-05          0   0.00e+00
+NRAP p.E327K + TTN p.E26065K                    2   647.22   5.24e-05          0   0.00e+00
+TTN p.E26065K + ZFP2 p.R150I                    2   647.22   5.24e-05          0   0.00e+00
+TTN p.E26065K + ZNF563 p.K26N                   2   647.22   5.24e-05          0   0.00e+00
+TTN p.E26065K + ZNF583 p.R232I                  2   647.22   5.24e-05          0   0.00e+00

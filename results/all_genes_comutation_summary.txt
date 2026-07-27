@@ -1,0 +1,55 @@
+========================================================================
+GENOME-WIDE ALL-BY-ALL CO-MUTATION ANALYSIS SUMMARY
+Project 130 - Colorectal Cancer (TCGA-COAD, N = 586 Tumours)
+========================================================================
+
+Total Mutated Genes Analysed: 17,585
+Total Pairwise Combinations Evaluated: 154,607,320
+Active Pairs with Overlap (nBoth >= 2): 26,248,622
+Statistically Significant Pairs (FDR q < 0.05): 14,378,963
+Significant Enriched Pairs (FDR q < 0.05 & OR > 2.0): 14,378,961
+
+------------------------------------------------------------------------
+1. TOP 20 GENOME-WIDE CO-OCCURRING GENE PAIRS (BY RAW PATIENT OVERLAP)
+------------------------------------------------------------------------
+Gene A       nA    Gene B       nB    nBoth  Expected OddsRatio  FDR q     
+KRAS           245 TTN            250    108   104.52       1.10   1.00e+00
+TP53           246 TTN            250    106   104.95       1.03   1.00e+00
+KRAS           245 TP53           246    105   102.85       1.06   1.00e+00
+MUC16          139 TTN            250     88    59.30       3.02   2.29e-05
+SYNE1          143 TTN            250     85    61.01       2.46   4.85e-04
+KRAS           245 PIK3CA         145     84    60.62       2.39   7.13e-04
+FAT4           117 TTN            250     76    49.91       3.12   4.28e-05
+PIK3CA         145 TTN            250     76    61.86       1.69   4.74e-02
+OBSCN           94 TTN            250     68    40.10       4.40   1.79e-06
+RYR2           101 TTN            250     68    43.09       3.40   3.62e-05
+MUC16          139 SYNE1          143     65    33.92       4.14   4.12e-07
+KRAS           245 MUC16          139     65    58.11       1.30   6.27e-01
+KRAS           245 SYNE1          143     59    59.79       0.97   1.00e+00
+RYR1            70 TTN            250     55    29.86       5.89   1.01e-06
+SYNE1          143 TP53           246     55    60.03       0.83   1.00e+00
+FAT4           117 MUC16          139     54    27.75       3.86   5.16e-06
+DNAH5           77 TTN            250     54    32.85       3.70   9.13e-05
+CSMD3           78 TTN            250     54    33.28       3.54   1.41e-04
+TTN            250 ZFHX4           83     54    35.41       2.89   9.63e-04
+TTN            250 USH2A           74     53    31.57       3.98   5.45e-05
+
+------------------------------------------------------------------------
+2. KEY FINDINGS & LESSONS FROM GENOME-WIDE TESTING
+------------------------------------------------------------------------
+- Giant Gene Bias: Raw patient overlap counts are heavily dominated by giant structural/extracellular genes
+  such as TTN, MUC16, SYNE1, OBSCN, RYR2, USH2A. These genes accumulate dozens of passenger mutations purely due to
+  their massive coding length (e.g. TTN is ~33,000 amino acids).
+- Confounding by Gene Popularity: Highly mutated gene pairs (e.g. TTN + MUC16) have large raw overlaps
+  simply because both genes are mutated in many tumours, NOT because they share a functional pathway.
+- Multiple-Testing Penalty: Testing all 154.6 million pairs imposes an extreme FDR penalty of m = 154,607,320,
+  requiring an unadjusted p-value < 3.2e-10 to achieve FDR q < 0.05.
+
+------------------------------------------------------------------------
+3. CANONICAL DRIVER PAIRS PERFORMANCE IN GENOME-WIDE BACKGROUND
+------------------------------------------------------------------------
+  APC    + TP53  : nBoth= 15, Expected= 17.21, OR= 0.80, p=8.13e-01, FDR=1.00e+00
+  APC    + KRAS  : nBoth= 17, Expected= 17.14, OR= 0.99, p=5.80e-01, FDR=1.00e+00
+  KRAS   + PIK3CA: nBoth= 84, Expected= 60.62, OR= 2.39, p=4.97e-06, FDR=7.13e-04
+  PIK3CA + SMAD4 : nBoth= 24, Expected= 13.61, OR= 2.63, p=9.81e-04, FDR=1.87e-02
+  KRAS   + BRAF  : nBoth=  3, Expected= 25.50, OR= 0.07, p=1.00e+00, FDR=1.00e+00

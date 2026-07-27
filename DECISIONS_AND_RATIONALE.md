@@ -230,6 +230,22 @@ Guiding principle throughout: *make defensible, transparent choices, report ever
   - *Differential Agretopicity:* Mutant `BigMHC_EL >= 0.50` AND Wild-type `BigMHC_EL < 0.50` ($\Delta\text{Presentation} = \text{Mut\_EL} - \text{WT\_EL} > 0$).
 - **Result:** Fully refactored pipeline scripts (06 to 19) operate directly on BigMHC presentation probabilities with zero reliance on MHCflurry.
 
+### 4H. Genome-Wide All-by-All Co-Mutation vs. Curated Driver Panel (Script 10 vs. `scratch/reverify_genome_wide.py`)
+
+**4.13 Why restrict driver co-mutation to 35 curated drivers instead of all 17,585 genes?**
+- **Why:** In an unfiltered all-by-all analysis across 17,585 genes ($154.6 \times 10^6$ pairs), giant genes (*TTN*, *MUC16*, *SYNE1*, *OBSCN*) dominate raw overlap counts ($n_{\text{both}} = 68\text{--}88$) and show apparent statistical significance ($\text{OR} = 2.5\text{--}4.4, p < 10^{-6}$) in the full cohort ($N=586$).
+- **The TMB Confounding Discovery:** Re-verification in `scratch/reverify_genome_wide.py` revealed that these giant gene co-occurrences are **surrogate markers of Tumour Mutational Burden (TMB) / the hypermutator phenotype** ($N=90$, $\ge 200$ SNVs). In hypermutators, almost every long gene is mutated in 100% of tumours, creating strong statistical co-occurrence across $N=586$.
+- **When Hypermutators are Removed ($N=495$ Standard Tumours):** Every giant passenger pair (`TTN + MUC16`, `TTN + SYNE1`, `TTN + OBSCN`, `MUC16 + FAT4`) collapses to an Odds Ratio $\approx 1.1\text{--}1.3$ with $p > 0.10$ (completely non-significant under independent chance). Conversely, genuine oncogenic driver partnerships like **`KRAS + PIK3CA`** strengthen from $\text{OR} = 2.39$ to $\text{OR} = 2.94$ ($p = 9.36 \times 10^{-7}$), emerging empirically as the **#1 most recurrent, statistically significant co-occurring gene pair in the entire human genome** in standard colorectal cancer.
+
+### 4I. Variant-Level (Locus-Specific) Co-Mutation & Hotspot Architecture (`scratch/variant_level_comutation.py`)
+
+**4.14 Why does *TTN* lack recurrent hotspots compared to driver genes?**
+- **Why:** To test whether any specific locus on *TTN* acts as an oncogenic hotspot or is highly co-selected, we evaluated all 153,996 distinct missense mutations at the variant level (`Gene p.Change`) in `scratch/variant_level_comutation.py`.
+- **Passenger vs. Driver Architecture:** 
+  - **Driver Hotspots (*KRAS*, *TP53*, *PIK3CA*, *BRAF*):** Under positive evolutionary selection, independent tumours repeatedly mutate the exact same amino acid codon (`KRAS p.G12D` in 65 tumours [11.1%], `KRAS p.G12V` in 56 tumours [9.6%], `BRAF p.V640E` in 51 tumours [8.7%]).
+  - **Passenger Dispersion (*TTN*):** Out of 678 distinct missense mutations on *TTN*, exactly **1 variant** (`p.E26065K`) occurs in 3 tumours (0.51%), **14 variants** occur in 2 tumours, and **663 variants (97.8%) are completely private** (occurring in exactly 1 tumour).
+- **Variant-Level Co-Occurrence:** In standard tumours ($N=495$), `TTN p.E26065K` has **zero co-occurrences** ($n_{\text{both}} = 0$). In contrast, specific driver variant pairs show genuine locus-specific co-selection (`KRAS p.G12V + TP53 p.R175H` in 10 standard tumours, $\text{OR} = 3.52, p = 3.79 \times 10^{-3}$; `KRAS p.G13D + PIK3CA p.E545K` in 7 standard tumours, $\text{OR} = 4.16, p = 6.33 \times 10^{-3}$).
+
 ---
 
 ## 5. Cross-cutting choices (reproducibility & conventions)
@@ -263,7 +279,9 @@ Guiding principle throughout: *make defensible, transparent choices, report ever
 | Delta direction | WT − Mut (positive = mutant stronger) | lower IC50 = stronger binding |
 | Shortlist | binder + delta>0 + TPM>1 + recur≥2 | presentable, tumour-specific, on, shared |
 | MutationFrequency | per specific mutation | §14 means the variant, not the gene |
-| Co-mutation genes | 34 curated CRC drivers | avoid gene-size artefacts (TTN) |
+| Co-mutation genes | 35 curated CRC drivers | avoid gene-size artefacts (TTN) |
+| Genome-wide co-mutation | 17,585 genes across N=586 vs. N=495 | proves giant gene pairs are TMB/hypermutator artefacts; KRAS+PIK3CA is #1 in standard CRC |
+| Variant-level hotspots | 153,996 distinct missense SNVs | proves TTN lacks driver hotspots (97.8% private) and has zero co-occurrence in standard CRC |
 | Co-mutation stats | Fisher (pairs), Poisson (triples), BH-FDR | control for marginal frequency + multiple testing |
 | Hypermutator cut-off | ≥ 200 missense SNVs | valley of bimodal dist; 15.5% ≈ known ~16% |
 | Clonal cut-off | median VAF ≥ 0.25 | proxy for clonal (VAF ~0.5 het, purity-adjusted) |
@@ -287,6 +305,8 @@ Guiding principle throughout: *make defensible, transparent choices, report ever
 - **"How is your final list ranked, and did you sanity-check it?"** A composite of five equal axes; KRAS G12V ranks #1. We caught a normalization flaw during that check: percentile-ranking the floor-dominated recurrence axis had briefly put a 3-tumour candidate (NRAS G13R) at #1. We fixed it by scoring recurrence on a log-absolute scale, which restored KRAS G12V to #1. NRAS G13R is still an excellent *per-patient* target (creates the epitope de novo) but correctly no longer a top *shared* one.
 - **"Binding vs immunogenicity — do you distinguish them?"** Yes, separate columns: binding = presented; immunogenicity (Calis) = T-cell-visible. A strong binder isn't automatically immunogenic, and 179/301 of our candidates work via anchor-driven *binding* (agretopicity), not raised immunogenicity.
 - **"Have you validated anything?"** Not experimentally (predictions only). But internally: KRAS G12D reproduces the textbook peptide exactly, the driver genes come out at expected frequencies, KRAS/BRAF are mutually exclusive, and the prioritised candidates are the neoantigens the field already pursues.
+- **"Why restrict driver co-mutation to 35 curated drivers instead of testing all 17,585 genes?"** When we test all 17,585 genes across the full cohort ($N=586$), giant genes (*TTN*, *MUC16*, *SYNE1*, *OBSCN*) dominate raw counts and statistical co-occurrence ($\text{OR} = 2.5\text{--}4.4$) because they act as surrogate detectors of the **hypermutator (MSI-H/POLE) phenotype** ($N=90$, $\ge 200$ SNVs). Once hypermutated tumours are removed ($N=495$ standard tumours), every giant passenger pair collapses to non-significance ($\text{OR} \rightarrow 1.2, p > 0.10$), while genuine oncogenic driver partnerships like **`KRAS + PIK3CA`** strengthen from $\text{OR} = 2.39$ to $\text{OR} = 2.94$ ($p = 9.36 \times 10^{-7}$), emerging empirically as the #1 most recurrent, statistically significant co-occurring gene pair in the entire human genome.
+- **"Could a specific variant locus on TTN be an oncogenic driver hotspot or highly co-selected?"** We tested all 153,996 distinct missense mutations at the variant level (`Gene p.Change`) across the cohort. Out of 678 distinct missense mutations on *TTN*, 97.8% (663 variants) are completely private (occur in exactly 1 tumour), and the most recurrent variant (`TTN p.E26065K`) occurs in only 3 tumours (0.51%) with zero co-occurrences in standard non-hypermutated tumours ($N=495$). In contrast, true driver genes (*KRAS*, *TP53*, *PIK3CA*, *BRAF*) exhibit strong positive selection at specific catalytic codons (`KRAS p.G12D` in 65 tumours [11.1%], `TP53 p.R175H` in 39 tumours [6.7%]) and demonstrate genuine locus-specific co-selection in standard tumours.
 
 ---
 
