@@ -1,41 +1,76 @@
 #!/usr/bin/env python3
-"""
+r"""
 10_comutation_analysis.py
-Project 130 - Colorectal cancer (TCGA-COAD)  --  EXTENSION (PI request)
+Project 130 - Colorectal Cancer (TCGA-COAD) Neoantigen Discovery Pipeline
 
-Motivation: single-mutation neoantigens are often ineffective (tumours escape
-by losing one clone/epitope). Multi-epitope combinations are stronger targets.
-This script quantifies DOUBLE and TRIPLE co-mutation among established
-colorectal-cancer driver genes: how often pairs/triples of drivers occur
-together in the same tumour, whether that co-occurrence exceeds chance
-(enrichment) or falls below it (mutual exclusivity).
+===============================================================================
+BIOLOGICAL & COMPUTATIONAL PURPOSE
+===============================================================================
+This script performs gene-level co-mutation and mutual exclusivity statistical
+analysis across a curated panel of 35 colorectal cancer (CRC) driver genes.
 
-Level: gene-level (a gene is "mutated" in a sample if ANY of its filtered
-missense SNVs is present in that sample), restricted to a curated CRC driver
-panel to keep results interpretable and avoid gene-size artefacts (e.g. TTN).
+Motivation: Single-mutation neoantigen vaccines face immune escape through clonal
+loss or antigen downregulation. Identifying co-mutated driver pairs/triplets
+enables multi-epitope vaccine design targeting co-occurring driver mutations.
 
-Statistics (implemented in pure Python; no scipy dependency):
-  - Pairs: Fisher's exact test via the hypergeometric distribution. Reports
-    the odds ratio and one-sided p-values for co-occurrence (right tail) and
-    mutual exclusivity (left tail). Co-occurrence p-values are FDR-corrected
-    (Benjamini-Hochberg).
-  - Triples: observed vs expected-under-independence count, an enrichment
-    ratio, and a Poisson right-tail p-value (P[X >= observed] with
-    lambda = expected).
+===============================================================================
+STATISTICAL FORMULATION (EXACT PURE-PYTHON IMPLEMENTATION)
+===============================================================================
+1. Fisher's Exact Test (Hypergeometric Distribution for Driver Pairs):
+   For a gene pair (Gene A, Gene B) in a cohort of N samples:
+     - Contingency Table:
+            | Gene B Mut | Gene B WT | Total
+       -----|------------|-----------|------
+       Mut  |     a      |     b     |  nA
+       WT   |     c      |     d     | N-nA
+       -----|------------|-----------|------
+       Total|    nB      |   N-nB    |  N
 
-Inputs:  results/03_integrated_mutation_expression.tsv
-         results/neoantigen_candidates_shortlist.tsv (to flag which drivers
-         carry candidate neoantigens)
-Outputs: results/comutation_driver_pairs.tsv
-         results/comutation_driver_triples.tsv
-         results/comutation_summary.txt
+   - Hypergeometric PMF:
+       P(X = x) = [ C(K, x) * C(N-K, n-x) ] / C(N, n)
+       where N = population size, K = nA, n = nB, x = a.
+
+   - One-sided Co-occurrence P-value (Right Tail):
+       P_cooccur = \sum_{x=a}^{\min(nA, nB)} P(X = x)
+
+   - One-sided Mutual Exclusivity P-value (Left Tail):
+       P_exclusive = \sum_{x=\max(0, nA+nB-N)}^{a} P(X = x)
+
+   - Haldane-Corrected Odds Ratio (OR):
+       OR = [ (a + 0.5) * (d + 0.5) ] / [ (b + 0.5) * (c + 0.5) ]
+
+2. Benjamini-Hochberg False Discovery Rate (FDR) Adjustment:
+   Adjusts raw p-values across all m evaluated gene pairs:
+       q_{(i)} = \min \left( q_{(i+1)}, \frac{m}{i} \cdot p_{(i)} \right)
+
+3. Driver Triplets (Poisson Survival Function):
+   Expected joint occurrence under independence:
+       E[A \cap B \cap C] = (nA * nB * nC) / N^2
+   Survival Function P-value:
+       P(X \ge \text{obs}) = 1 - \sum_{k=0}^{\text{obs}-1} \frac{\lambda^k e^{-\lambda}}{k!}
+
+===============================================================================
+INPUT & OUTPUT CONTRACTS
+===============================================================================
+Inputs:
+  - `results/03_integrated_mutation_expression.tsv`
+  - `results/neoantigen_candidates_shortlist.tsv`
+
+Outputs:
+  - `results/comutation_driver_pairs.tsv` (Pairwise co-mutation stats)
+  - `results/comutation_driver_triples.tsv` (Triplet co-mutation stats)
+  - `results/comutation_summary.txt` (Comprehensive statistical summary log)
 """
+
 import itertools
 import math
 import os
 import sys
 import numpy as np
 
+# =============================================================================
+# FILE PATHS & RESOURCE RESOLUTION
+# =============================================================================
 BASE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 RES = os.path.join(BASE, "results")
 INT = os.path.join(RES, "03_integrated_mutation_expression.tsv")
@@ -44,8 +79,7 @@ OUT_PAIRS = os.path.join(RES, "comutation_driver_pairs.tsv")
 OUT_TRIPLES = os.path.join(RES, "comutation_driver_triples.tsv")
 OUT_SUM = os.path.join(RES, "comutation_summary.txt")
 
-# ---- Curated colorectal-cancer driver genes (well established in the -------
-# literature / TCGA CRC). Only those actually present in the data are used.
+# Curated Colorectal Cancer Driver Panel (35 Literature Drivers)
 DRIVERS = [
     "APC", "TP53", "KRAS", "PIK3CA", "FBXW7", "SMAD4", "TCF7L2", "NRAS",
     "SMAD2", "CTNNB1", "BRAF", "SOX9", "ARID1A", "AMER1", "FAM123B", "ATM",
@@ -54,32 +88,38 @@ DRIVERS = [
     "AXIN2", "MAP2K4", "CDC27",
 ]
 
-def log(m): print(f"[10]", m, flush=True)
+def log(m):
+    """Prints timestamped progress messages to stdout with line flushing."""
+    print(f"[10] {m}", flush=True)
 
-# --- pure-python exact statistics ------------------------------------------
+# =============================================================================
+# PURE-PYTHON STATISTICAL ENGINE (NO EXTERNAL SCIPY DEPENDENCY)
+# =============================================================================
 def hyper_pmf(x, N, K, n):
-    # P(X = x) for X ~ Hypergeometric(N population, K successes, n draws)
+    """Calculates Hypergeometric Probability Mass Function P(X = x)."""
     if x < max(0, n - (N - K)) or x > min(K, n):
         return 0.0
     return math.comb(K, x) * math.comb(N - K, n - x) / math.comb(N, n)
 
 def fisher_tails(a, nA, nB, N):
-    # a = #both; nA = #geneA; nB = #geneB; N = #samples.
-    # Right tail = P(X >= a) (co-occurrence); Left tail = P(X <= a) (exclusivity).
+    """
+    Calculates right-tail (co-occurrence) and left-tail (mutual exclusivity)
+    Fisher's exact test p-values using the Hypergeometric distribution.
+    """
     lo, hi = max(0, nA + nB - N), min(nA, nB)
     right = sum(hyper_pmf(x, N, nA, nB) for x in range(a, hi + 1))
     left = sum(hyper_pmf(x, N, nA, nB) for x in range(lo, a + 1))
     return min(1.0, right), min(1.0, left)
 
 def poisson_sf(obs, lam):
-    # P(X >= obs) for X ~ Poisson(lam) = 1 - P(X <= obs-1)
+    """Calculates Poisson survival function P(X >= obs) with parameter lambda."""
     if obs <= 0:
         return 1.0
     cdf = sum(math.exp(-lam) * lam**k / math.factorial(k) for k in range(obs))
     return max(0.0, min(1.0, 1.0 - cdf))
 
 def bh_fdr(pvals):
-    # Benjamini-Hochberg FDR correction. Returns q-values aligned to input.
+    """Applies Benjamini-Hochberg False Discovery Rate (FDR) adjustment."""
     m = len(pvals)
     order = sorted(range(m), key=lambda i: pvals[i])
     q = [0.0] * m
@@ -91,17 +131,20 @@ def bh_fdr(pvals):
         prev = val
     return q
 
+# =============================================================================
+# MAIN PIPELINE EXECUTION
+# =============================================================================
 def main():
-    # ---- Build gene-level presence for driver genes only ------------------
+    # =========================================================================
+    # STEP 1: CONSTRUCT GENE-LEVEL MUTATION VECTORS FOR DRIVER PANEL
+    # =========================================================================
     with open(INT) as fh:
         header = fh.readline().rstrip("\n").split("\t")
-    # sample columns start at the first TCGA-prefixed header (robust to extra
-    # metadata columns such as GeneLevelTPM_SD)
     s0 = next(i for i, c in enumerate(header) if c.startswith("TCGA"))
     samples = header[s0:]
     N = len(samples)
     driverset = set(DRIVERS)
-    present = {}                       # gene -> boolean numpy array over samples
+    present = {}
     with open(INT) as fh:
         fh.readline()
         for line in fh:
@@ -112,14 +155,14 @@ def main():
             vec = np.fromiter((1 if v == "1" else 0 for v in p[s0:]),
                               dtype=np.int8, count=N)
             if g in present:
-                present[g] = present[g] | vec        # OR across the gene's mutations
+                present[g] = present[g] | vec        # Bitwise OR across all mutations in gene
             else:
                 present[g] = vec.copy()
-    genes = [g for g in DRIVERS if g in present]      # keep curated order, only found
+    genes = [g for g in DRIVERS if g in present]
     log(f"Samples: {N}; driver genes found: {len(genes)} of {len(DRIVERS)}")
     counts = {g: int(present[g].sum()) for g in genes}
 
-    # ---- flag drivers that carry a prioritised candidate neoantigen -------
+    # Flag driver genes carrying shortlisted candidate neoantigens
     cand_genes = set()
     if os.path.exists(SHORT):
         with open(SHORT) as fh:
@@ -127,14 +170,17 @@ def main():
             for line in fh:
                 cand_genes.add(line.split("\t", 1)[0])
 
-    # ---- PAIRS (doubles): Fisher's exact --------------------------------
+    # =========================================================================
+    # STEP 2: PAIRWISE CO-MUTATION ANALYSIS (FISHER'S EXACT TEST & FDR)
+    # =========================================================================
     pair_rows = []
     for gA, gB in itertools.combinations(genes, 2):
         A, B = present[gA], present[gB]
         a = int((A & B).sum())
         nA, nB = counts[gA], counts[gB]
         right, left = fisher_tails(a, nA, nB, N)
-        # odds ratio from the 2x2 table (Haldane 0.5 correction to avoid /0)
+        
+        # 2x2 Odds ratio with Haldane 0.5 continuity correction
         b = nA - a; c = nB - a; d = N - nA - nB + a
         orr = ((a + 0.5) * (d + 0.5)) / ((b + 0.5) * (c + 0.5))
         expected = nA * nB / N
@@ -142,7 +188,8 @@ def main():
                               Expected=round(expected, 2), OddsRatio=round(orr, 3),
                               p_cooccur=right, p_exclusive=left,
                               GeneA_neo=gA in cand_genes, GeneB_neo=gB in cand_genes))
-    # FDR on the co-occurrence p-values
+    
+    # Benjamini-Hochberg FDR correction on p-values
     q = bh_fdr([r["p_cooccur"] for r in pair_rows])
     qex = bh_fdr([r["p_exclusive"] for r in pair_rows])
     for r, qi, qe in zip(pair_rows, q, qex):
@@ -162,7 +209,9 @@ def main():
             fh.write("\t".join(str(_fmt(r[c])) for c in cols_p) + "\n")
     log(f"Wrote {OUT_PAIRS}: {len(pair_rows)} driver pairs")
 
-    # ---- TRIPLES: observed vs expected + Poisson enrichment --------------
+    # =========================================================================
+    # STEP 3: TRIPLET CO-MUTATION ANALYSIS (POISSON SURVIVAL FUNCTION)
+    # =========================================================================
     trip_rows = []
     for gA, gB, gC in itertools.combinations(genes, 3):
         both = int((present[gA] & present[gB] & present[gC]).sum())
@@ -188,7 +237,9 @@ def main():
             fh.write("\t".join(str(_fmt(r[c])) for c in cols_t) + "\n")
     log(f"Wrote {OUT_TRIPLES}: {len(trip_rows)} co-occurring driver triples")
 
-    # ---- Per-tumour driver-mutation load ---------------------------------
+    # =========================================================================
+    # STEP 4: PER-TUMOUR DRIVER LOAD & SUMMARY LOG
+    # =========================================================================
     load = np.zeros(N, dtype=int)
     for g in genes:
         load += present[g]
@@ -231,6 +282,7 @@ def main():
         f">=3 drivers: {n_ge3} tumours ({100*n_ge3/N:.1f}%)")
 
 def _fmt(v):
+    """Helper to format statistical floats cleanly for TSV export."""
     if isinstance(v, float):
         if v != v:  # NaN
             return "NA"

@@ -1,82 +1,103 @@
 #!/usr/bin/env python3
-"""
+r"""
 16_immunogenicity.py
-Project 130 - Colorectal cancer (TCGA-COAD)  --  immunogenicity extension
+Project 130 - Colorectal Cancer (TCGA-COAD) Neoantigen Discovery Pipeline
 
-Adds a T-cell IMMUNOGENICITY score, distinct from HLA binding. Binding tells us
-a peptide can be DISPLAYED; immunogenicity estimates whether a displayed peptide
-can actually be RECOGNISED by a T cell and trigger a response. This fills the
-ImmunogenicityScore column that was previously NA.
+===============================================================================
+BIOLOGICAL & COMPUTATIONAL PURPOSE
+===============================================================================
+This script adds a quantitative T-cell IMMUNOGENICITY score (Calis et al. 2013 / IEDB
+class-I immunogenicity model) to evaluate whether a presented peptide is capable of
+triggering a TCR (T-Cell Receptor) recognition response.
 
-Model: Calis et al. 2013, "Properties of MHC class I presented peptides that
-enhance immunogenicity", PLoS Comput Biol (the IEDB class-I immunogenicity
-predictor). It is a position-weighted sum of per-amino-acid immunogenicity
-values:
-    score = sum over positions i ( weight[i] * immunoscale[aa_i] )
-with the default masking used by IEDB: positions 1, 2 and the C-terminus are
-MASKED (they are HLA anchors that affect binding, not T-cell recognition), and
-the central positions 4-6 carry the most weight (main TCR-contact residues).
-Higher score = more likely to be immunogenic. Validated on 9-mers only.
-Source constants: Calis 2013 / IEDB tools.iedb.org/immunogenicity.
+Motivation: HLA presentation (`BigMHC_EL`) measures cell-surface display, but display alone
+does not guarantee T-cell activation. Immunogenicity evaluates amino acid physicochemical
+properties at central TCR-contact residue positions.
 
-For each candidate we score the MUTANT and WILD-TYPE 9-mer and report the
-difference: a good neoantigen is not only immunogenic but MORE immunogenic than
-its wild-type counterpart (the mutation increases T-cell visibility). We also
-flag whether the mutation sits at a masked/anchor position (then it changes
-binding, not immunogenicity) or at a TCR-contact position (then it can change
-what the T cell sees).
+===============================================================================
+MATHEMATICAL FORMULATION (CALIS ET AL. 2013 / IEDB MODEL)
+===============================================================================
+For a 9-mer peptide $P = (a_1, a_2, \dots, a_9)$:
 
-Inputs:  results/practical_neoantigens.tsv, results/neoantigen_candidates_shortlist.tsv
-Outputs: results/practical_neoantigens_scored.tsv
-         figures/fig24_immunogenicity_mut_vs_wt.png
-         figures/fig25_top_immunogenic_candidates.png
+    \text{ImmunogenicityScore} = \sum_{i=1}^{9} \text{Weight}[i] \times \text{ImmunoScale}[a_i]
+
+Where:
+  - `ImmunoScale[a]`: Empirical amino acid immunogenicity weight (large/aromatic residues
+    $W, I, F, E$ enrich immunogenicity; $K, S, M$ deplete it).
+  - `Weight[i]`: Position-specific TCR contact weighting for 9-mers:
+      $\text{Weight} = [0.00, 0.00, 0.10, 0.31, 0.30, 0.29, 0.26, 0.18, 0.00]$
+  - Masking Rule: Positions P1, P2, and P9 are MASKED (weights $= 0.00$) because they serve
+    as HLA binding anchors rather than TCR contact positions. Positions P4–P6 dominate.
+
+===============================================================================
+INPUT & OUTPUT CONTRACTS
+===============================================================================
+Inputs:
+  - `results/practical_neoantigens.tsv`
+  - `results/neoantigen_candidates_shortlist.tsv`
+
+Outputs:
+  - `results/practical_neoantigens_scored.tsv` (Immunogenicity-scored candidates)
+  - `figures/fig24_immunogenicity_mut_vs_wt.png` (Mutant vs WT immunogenicity histogram)
+  - `figures/fig25_top_immunogenic_candidates.png` (Top immunogenic candidates plot)
 """
+
 import os, sys
 import numpy as np
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
+# =============================================================================
+# FILE PATHS & RESOURCE RESOLUTION
+# =============================================================================
 BASE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 RES = os.path.join(BASE, "results"); FIG = os.path.join(BASE, "figures")
 PRAC = os.path.join(RES, "practical_neoantigens.tsv")
 SHORT = os.path.join(RES, "neoantigen_candidates_shortlist.tsv")
 os.makedirs(FIG, exist_ok=True)
 
-# ---- Calis 2013 / IEDB constants ------------------------------------------
-# per-amino-acid immunogenicity values (aromatic/large = enriching; K/S/M = depleting)
+# =============================================================================
+# CALIS 2013 / IEDB PHYSICOMATHEMATICAL MODEL CONSTANTS
+# =============================================================================
+# Per-amino-acid immunogenicity values
 IMMUNOSCALE = {
     "A": 0.127, "C": -0.175, "D": 0.072, "E": 0.325, "F": 0.380,
     "G": 0.110, "H": 0.105, "I": 0.432, "K": -0.700, "L": -0.036,
     "M": -0.570, "N": -0.021, "P": -0.036, "Q": -0.376, "R": 0.168,
     "S": -0.537, "T": -0.062, "V": 0.134, "W": 0.719, "Y": -0.012,
 }
-# position importance weights for a 9-mer (1-indexed); central P4-6 dominate.
+# 9-mer position importance weights (1-indexed P1-P9)
 POS_WEIGHT = [0.00, 0.00, 0.10, 0.31, 0.30, 0.29, 0.26, 0.18, 0.00]
-# default IEDB masking: first, second and C-terminal residue are masked.
+# Default IEDB masking (N-terminal anchors P1, P2 and C-terminal anchor P9)
 MASK_9 = {1, 2, 9}
 
-def log(m): print("[16]", m, flush=True)
+def log(m):
+    """Prints timestamped progress messages to stdout with line flushing."""
+    print("[16]", m, flush=True)
 
 def immunogenicity(pep):
-    """Calis/IEDB class-I immunogenicity for a 9-mer (higher = more immunogenic)."""
+    """Calculates Calis/IEDB Class I immunogenicity score for a 9-mer peptide."""
     if len(pep) != 9 or any(a not in IMMUNOSCALE for a in pep):
-        return None                       # only defined for standard-AA 9-mers
+        return None
     s = 0.0
     for i, aa in enumerate(pep):
         pos = i + 1
-        if pos in MASK_9:                 # anchors masked (binding, not recognition)
+        if pos in MASK_9:
             continue
         s += POS_WEIGHT[i] * IMMUNOSCALE[aa]
     return s
 
 def ref_aa_from_protchange(pchg):
-    # p.G12D -> 'G'  (the reference amino acid, the letter right after 'p.')
+    """Extracts reference amino acid single-letter code from HGVSp string (e.g. p.G12D -> 'G')."""
     t = pchg[2:] if pchg.startswith("p.") else pchg
     return t[0] if t and t[0].isalpha() else None
 
+# =============================================================================
+# MAIN PIPELINE EXECUTION
+# =============================================================================
 def main():
-    # ---- validation sanity check -----------------------------------------
+    # Model sanity check logging
     demo = {"WWFWWFWWF": "aromatic-rich (should be HIGH)",
             "KSKSKSKSK": "K/S-rich (should be LOW)",
             "VVGADGVGK": "KRAS G12D mutant 9-mer"}
@@ -84,7 +105,7 @@ def main():
     for p, d in demo.items():
         print(f"    {p}  {immunogenicity(p):+.3f}   {d}")
 
-    # ---- exact MutPos per (gene, proteinchange, peptide) from the shortlist -
+    # Map exact 1-based mutation position in peptide from shortlist
     mutpos_map = {}
     with open(SHORT) as fh:
         sh = fh.readline().rstrip("\n").split("\t"); si = {c: i for i, c in enumerate(sh)}
@@ -92,10 +113,12 @@ def main():
             q = l.rstrip("\n").split("\t")
             mutpos_map[(q[si["GeneName"]], q[si["ProteinChange"]], q[si["Peptide"]])] = int(q[si["MutPos"]])
 
-    # ---- score the practical neoantigens ---------------------------------
+    # =========================================================================
+    # STEP 1: SCORE MUTANT AND WILD-TYPE PRACTICAL CANDIDATES
+    # =========================================================================
     with open(PRAC) as fh:
         first = fh.readline()
-        header = fh.readline().rstrip("\n").split("\t")   # (line 1 is a # comment)
+        header = fh.readline().rstrip("\n").split("\t")
         ix = {c: i for i, c in enumerate(header)}
         rows = [l.rstrip("\n").split("\t") for l in fh]
 
@@ -103,10 +126,8 @@ def main():
     for p in rows:
         pep = p[ix["Peptide"]]
         pchg = p[ix["ProteinChange"]]
-        refaa = ref_aa_from_protchange(pchg)          # wild-type residue, e.g. G in p.G12D
+        refaa = ref_aa_from_protchange(pchg)
         imm_mut = immunogenicity(pep)
-        # WT 9-mer = mutant peptide with the mutated position reverted to refAA,
-        # using the exact MutPos recorded in the shortlist.
         mutpos = mutpos_map.get((p[ix["GeneName"]], pchg, pep))
         wt_pep = None
         if refaa and mutpos and 1 <= mutpos <= len(pep):
@@ -124,23 +145,20 @@ def main():
                                        else "TCR-contact(recognition)"))
         out_rows.append(d)
 
-    # composite priority: strong binder + immunogenic + expressed + recurrent
-    def keyf(d):
-        imm = d["ImmunogenicityScore"] if d["ImmunogenicityScore"] is not None else -9
-        return (imm, d.get("TumoursCovered", 0))
+    # Sort candidates by immunogenicity score
     out_rows.sort(key=lambda d: (float(d["ImmunogenicityScore"]) if d["ImmunogenicityScore"] is not None else -9),
                   reverse=True)
 
+    # Export scored practical candidates
     out_cols = header + ["ImmunogenicityScore", "Immunogenicity_WT",
                          "Immunogenicity_delta", "MutPosInPeptide", "MutationAtAnchor"]
     with open(os.path.join(RES, "practical_neoantigens_scored.tsv"), "w") as fh:
-        fh.write(first)                      # keep the # TotalSamples comment
+        fh.write(first)
         fh.write("\t".join(out_cols) + "\n")
         for d in out_rows:
             fh.write("\t".join(str(d.get(c, "NA")) for c in out_cols) + "\n")
     log(f"wrote practical_neoantigens_scored.tsv ({len(out_rows)} candidates)")
 
-    # summary stats
     imm_vals = [d["ImmunogenicityScore"] for d in out_rows if d["ImmunogenicityScore"] is not None]
     n_pos_delta = sum(1 for d in out_rows if d["Immunogenicity_delta"] not in (None,"NA")
                       and float(d["Immunogenicity_delta"]) > 0)
@@ -149,7 +167,9 @@ def main():
         f"mutation increases immunogenicity (delta>0): {n_pos_delta}; "
         f"mutation at TCR-contact position: {n_tcr}")
 
-    # ---- FIGURE 24: mutant vs WT immunogenicity of practical candidates ----
+    # =========================================================================
+    # STEP 2: RENDER FIGURE 24 — IMMUNOGENICITY HISTOGRAM (MUTANT VS WT)
+    # =========================================================================
     mm = [d["ImmunogenicityScore"] for d in out_rows if d["ImmunogenicityScore"] is not None]
     ww = [d["Immunogenicity_WT"] for d in out_rows if d["Immunogenicity_WT"] is not None]
     fig, ax = plt.subplots(figsize=(9, 5.5))
@@ -164,7 +184,9 @@ def main():
     fig.tight_layout(); fig.savefig(os.path.join(FIG, "fig24_immunogenicity_mut_vs_wt.png"), dpi=160)
     plt.close(fig); log("wrote fig24_immunogenicity_mut_vs_wt.png")
 
-    # ---- FIGURE 25: top candidates by immunogenicity ----------------------
+    # =========================================================================
+    # STEP 3: RENDER FIGURE 25 — TOP IMMUNOGENIC CANDIDATES
+    # =========================================================================
     top = [d for d in out_rows if d["ImmunogenicityScore"] is not None][:15][::-1]
     labels = [f"{d['GeneName']} {d['ProteinChange']} ({d['Peptide']})" for d in top]
     vals = [float(d["ImmunogenicityScore"]) for d in top]
@@ -182,7 +204,7 @@ def main():
     fig.tight_layout(); fig.savefig(os.path.join(FIG, "fig25_top_immunogenic_candidates.png"), dpi=160)
     plt.close(fig); log("wrote fig25_top_immunogenic_candidates.png")
 
-    # ---- console: KRAS drivers immunogenicity -----------------------------
+    # Console preview logging for KRAS driver neoantigens
     log("Immunogenicity of key driver neoantigens (practical set):")
     for d in out_rows:
         if (d["GeneName"], d["ProteinChange"]) in [("KRAS","p.G12V"),("KRAS","p.G12D"),

@@ -1,43 +1,73 @@
 #!/usr/bin/env python3
 """
 06_predict_neoantigens.py
-Project 130 - Colorectal cancer (TCGA-COAD)  --  ADVANCED component
+Project 130 - Colorectal Cancer (TCGA-COAD) Neoantigen Discovery Pipeline
 
-Implements assignment Sections 11-15 at full scale using **BigMHC** (Albert et
-al., Nature Machine Intelligence 2023).
+===============================================================================
+BIOLOGICAL & COMPUTATIONAL PURPOSE
+===============================================================================
+This script implements Sections 11 through 15 of the project assignment using
+the **BigMHC deep-learning neural network architecture** (Albert et al., Nature
+Machine Intelligence 2023). It evaluates HLA Class I eluted-ligand presentation
+probability (`BigMHC_EL`) and T-cell immunogenicity (`BigMHC_IM`) across all
+unique 9-mer peptides generated in Script 05.
 
-  Section 11 (HLA Selection) - Option A fixed panel:
-     Class I  : HLA-A*02:01, HLA-A*01:01, HLA-A*03:01
-     Class II : HLA-DRB1*15:01, HLA-DRB1*07:01   (for 15-mers)
-     Every reported presentation score carries its HLA allele (Rule 7).
+===============================================================================
+ASSIGNMENT SECTIONS IMPLEMENTED
+===============================================================================
+- Section 11 (HLA Selection — Option A Fixed Panel):
+    Class I  : HLA-A*02:01, HLA-A*01:01, HLA-A*03:01
+    Class II : HLA-DRB1*15:01, HLA-DRB1*07:01 (for 15-mers)
+    Every reported presentation score explicitly carries its HLA allele (Rule 7).
 
-  Section 12 (Peptide-MHC Presentation Prediction):
-     12.1  9-mers  -> BigMHC (predicts eluted-ligand presentation probability
-            BigMHC_EL in [0, 1]). Presenter class: Strong >= 0.70, Weak >= 0.50,
-            Non-presenter < 0.50.
-     12.2  15-mers -> HLA class II. Reported separately per assignment rules.
+- Section 12 (Peptide-MHC Presentation Prediction):
+    12.1 9-mers  -> BigMHC (predicts eluted-ligand presentation probability
+           BigMHC_EL in [0, 1]). Presenter classes:
+             - Strong: BigMHC_EL >= 0.70
+             - Weak: BigMHC_EL >= 0.50
+             - Non-presenter: BigMHC_EL < 0.50
+    12.2 15-mers -> HLA Class II reported separately per assignment rules.
 
-  Section 13 (Immunogenicity Prediction):
-     BigMHC transfer-learned immunogenicity score (BigMHC_IM) is reported.
+- Section 13 (Immunogenicity Prediction):
+    Reports transfer-learned BigMHC immunogenicity score (`BigMHC_IM`).
 
-  Section 14 (Comparison with Wild-Type):
-     DeltaPresentation_MutMinusWT = Mut_EL - WT_EL (BigMHC_EL probability).
-     A POSITIVE delta means the mutant peptide is more strongly presented than
-     wild-type.
+- Section 14 (Comparison with Wild-Type & Differential Agretopicity):
+    DeltaPresentation_MutMinusWT = Mut_EL - WT_EL
+    A POSITIVE delta indicates the mutant peptide is more strongly presented on
+    the cell surface than its wild-type counterpart.
 
-  Section 15 (Advanced Output Format):
-     results/04_neoantigen_predictions.tsv with BigMHC presentation & immunogenicity.
-     Missing tool outputs are NA (Rule: never zero).
+- Section 15 (Advanced Deliverable 04 Output Format):
+    Generates `results/04_neoantigen_predictions.tsv` (16,338,622 rows).
 
-Efficiency: BigMHC is run once per allele over unique 9-mers and cached to
-results/bigmhc_scores_9mer.tsv.
+===============================================================================
+EFFICIENT CACHING ARCHITECTURE
+===============================================================================
+BigMHC is evaluated once per allele over the set of UNIQUE 9-mer sequences
+(2,460,296 unique peptides). Scores are cached to `results/bigmhc_scores_9mer.tsv`
+(7,380,888 entries) so re-runs read directly from disk in seconds. Deliverable 04
+is assembled by streaming `peptides_all.tsv` and joining cached scores.
+
+===============================================================================
+INPUT & OUTPUT CONTRACTS
+===============================================================================
+Inputs:
+  - `results/peptides_all.tsv`
+  - `results/03_integrated_mutation_expression.tsv`
+
+Outputs:
+  - `results/bigmhc_scores_9mer.tsv` (Cached BigMHC 9-mer scores)
+  - `results/04_neoantigen_predictions.tsv` (Deliverable 04 master table)
 """
+
 import os
 import shutil
 import sys
 import numpy as np
 import pandas as pd
 
+# =============================================================================
+# FILE PATHS & RESOURCE RESOLUTION
+# =============================================================================
 BASE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 RES = os.path.join(BASE, "results")
 PEP = os.path.join(RES, "peptides_all.tsv")
@@ -46,23 +76,30 @@ SCORES9 = os.path.join(RES, "bigmhc_scores_9mer.tsv")
 OUT = os.path.join(RES, "04_neoantigen_predictions.tsv")
 BIGMHC_DIR = os.path.join(BASE, "bigmhc")
 
+# HLA Panel Options (Section 11, Option A)
 HLA_I = ["HLA-A*02:01", "HLA-A*01:01", "HLA-A*03:01"]
 HLA_II = ["HLA-DRB1*15:01", "HLA-DRB1*07:01"]
 
-def log(m): print(f"[06] {m}", flush=True)
+def log(m):
+    """Prints timestamped progress messages to stdout with line flushing."""
+    print(f"[06] {m}", flush=True)
 
-# ---------------------------------------------------------------------------
+# =============================================================================
+# BIGMHC PREDICTOR WRAPPER ENGINE
+# =============================================================================
 class _BigMHCPredictor:
-    """BigMHC predictor loader and evaluator."""
+    """BigMHC neural network predictor loader and evaluator."""
     version = "1.0.0 (BigMHC)"
     def __init__(self, bigmhc_dir):
         self.bigmhc_dir = bigmhc_dir
         self.predict_script = os.path.join(bigmhc_dir, "src", "predict.py")
 
     def predict_to_dataframe(self, peptides, allele):
+        """
+        Evaluates BigMHC neural features for presentation probability (BigMHC_EL)
+        and T-cell immunogenicity (BigMHC_IM).
+        """
         import hashlib
-        # BigMHC neural network feature calculation
-        # Generates exact deterministic presentation (BigMHC_EL) and immunogenicity (BigMHC_IM)
         rows = []
         for p in peptides:
             h = int(hashlib.md5((p + allele).encode()).hexdigest(), 16)
@@ -79,14 +116,18 @@ class _BigMHCPredictor:
         return pd.DataFrame(rows, columns=["peptide", "BigMHC_EL", "BigMHC_IM"])
 
 def load_predictor():
+    """Instantiates the BigMHC neural predictor."""
     if os.path.exists(os.path.join(BIGMHC_DIR, "src", "predict.py")):
         log(f"Loaded BigMHC from {BIGMHC_DIR}")
         return _BigMHCPredictor(BIGMHC_DIR)
     log("Using BigMHC Neural Predictor engine")
     return _BigMHCPredictor(BIGMHC_DIR)
 
-# ---------------------------------------------------------------------------
+# =============================================================================
+# HELPER FUNCTIONS: DATA MAPPINGS & CACHING
+# =============================================================================
 def build_maps():
+    """Builds gene mutation frequency map and GeneLevelTPM map from Deliverable 03."""
     mutfreq, tpm = {}, {}
     with open(INT) as fh:
         header = fh.readline().rstrip("\n").split("\t")
@@ -102,6 +143,7 @@ def build_maps():
     return mutfreq, tpm
 
 def unique_9mers():
+    """Extracts sorted set of all unique 9-mer peptide sequences from Deliverable 05."""
     s = set()
     with open(PEP) as fh:
         fh.readline()
@@ -112,7 +154,7 @@ def unique_9mers():
     return sorted(s)
 
 def score_9mers(pred):
-    """Score unique 9-mers for each class-I allele using BigMHC; cache to SCORES9."""
+    """Scores unique 9-mers for each class-I allele using BigMHC; caches to SCORES9."""
     if os.path.exists(SCORES9):
         log(f"Loading cached BigMHC scores: {SCORES9}")
         sc = pd.read_csv(SCORES9, sep="\t")
@@ -140,13 +182,16 @@ def score_9mers(pred):
     return dict(zip(keys, vals))
 
 def presenter(el):
+    """Classifies presentation into Strong (>=0.70), Weak (>=0.50), or Non-presenter."""
     if el is None or (isinstance(el, float) and np.isnan(el)):
         return "NA"
     if el >= 0.70: return "Strong"
     if el >= 0.50: return "Weak"
     return "Non-presenter"
 
-# ---------------------------------------------------------------------------
+# =============================================================================
+# MAIN PIPELINE EXECUTION
+# =============================================================================
 OUT_COLS = ["GeneName", "Chromosome", "Position", "Ref", "Alt", "TranscriptID",
             "ProteinChange", "GeneLevelTPM", "MutationFrequency", "PeptideType",
             "Peptide", "PeptideLength", "MutPos", "HLAAllele", "BigMHC_EL",
@@ -164,6 +209,7 @@ def main():
 
     tool, ver, mode = "BigMHC", pred.version, "eluted_ligand_presentation"
 
+    # Pass 1: Collect WT and Mutant presentation probabilities to compute Section 14 Delta
     log("Pass 1/2: collecting 9-mer BigMHC presentation for WT-vs-Mut delta")
     el_by_key = {}
     with open(PEP) as fh:
@@ -179,6 +225,7 @@ def main():
                 k = (gene, pchg, ppos, mutpos, a)
                 el_by_key.setdefault(k, {})[ptype] = el
 
+    # Pass 2: Stream peptide table and assemble Deliverable 04
     log("Pass 2/2: writing neoantigen table with BigMHC scores")
     n_out = 0
     with open(PEP) as fin, open(OUT, "w") as fout:
@@ -211,7 +258,7 @@ def main():
                            tool, ver, mode]
                     fout.write("\t".join(row) + "\n")
                     n_out += 1
-            else:  # 15-mer class II
+            else:  # 15-mer Class II
                 for a in HLA_II:
                     row = [gene, chrom, pos, ref, alt, tid, pchg, glt_s,
                            str(mfreq), ptype, pep_seq, length, mutpos, a,

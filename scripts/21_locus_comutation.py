@@ -1,41 +1,43 @@
 #!/usr/bin/env python3
-"""
+r"""
 21_locus_comutation.py
-Project 130 - Colorectal cancer (TCGA-COAD)  --  EXTENSION (PI request)
+Project 130 - Colorectal Cancer (TCGA-COAD) Neoantigen Discovery Pipeline
 
-LOCUS-LEVEL co-mutation, ALL SAMPLES, NO hypermutator filtering.
+===============================================================================
+BIOLOGICAL & COMPUTATIONAL PURPOSE
+===============================================================================
+This script performs LOCUS-LEVEL co-mutation analysis across all 586 TCGA-COAD tumours.
 
-Unlike scripts 10/12/15 (which work at GENE level - a gene is "mutated" if ANY
-of its missense SNVs is present), this script tests co-occurrence between
-SPECIFIC MUTATIONS / SPECIFIC LOCI, i.e. exact protein changes such as
-KRAS p.G12D + TP53 p.R175H. Amino-acid resolution is preserved, so a strong,
-tumour-specific hotspot is never merged into a gene-level "any KRAS" bucket.
+Motivation: Unlike gene-level co-mutation (Scripts 10, 12, 15) which aggregates all missense
+mutations in a gene, locus-level co-mutation tests co-occurrence between SPECIFIC
+PROTEIN POSITIONS / RESIDUES (e.g. KRAS p.G12D + TP53 p.R175H).
 
-Design choices (this run):
-  * Level      : specific locus = (GeneName, AminoAcidChange). Rows that share a
-                 protein change (e.g. two HGVSc for K117N) are OR-ed together.
-  * Gene scope : curated CRC driver panel (34 genes) - keeps results
-                 interpretable and avoids gene-size artefacts (TTN, MUC16).
-  * Loci kept  : recurrence >= MIN_REC (3 tumours). Loci below this have
-                 essentially no statistical power for co-occurrence.
-  * Samples    : ALL 586 tumours. NO hypermutator exclusion ANYWHERE. (The
-                 >=200-SNV cut in script 15 is a co-mutation *robustness* control
-                 only; it is deliberately NOT applied to this analysis.)
-  * Reporting  : to answer "is a specific-locus co-mutation just a hypermutator
-                 artefact?", every co-occurring pair ALSO reports how many of the
-                 co-mutated tumours are hypermutated vs not - this is annotation
-                 only, it never filters anything.
+===============================================================================
+COMPUTATIONAL & STATISTICAL METHODOLOGY
+===============================================================================
+  1. Locus Definition: Defined by the tuple `(GeneName, ProteinChange)`.
+  2. Sample Scope: ALL 586 TCGA-COAD tumours (zero hypermutator sample exclusions).
+  3. Locus Recurrence Filtering: Restricts statistical testing to driver loci with
+     recurrence $\ge 3$ tumours (`MIN_REC = 3`).
+  4. Hypermutator Reporting: Annotates each co-occurring pair with the count of
+     hypermutated ($\text{burden} \ge 200$) vs non-hypermutated tumours carrying both loci
+     without dropping any samples.
+  5. Exact Statistics: Fisher's exact tests (odds ratio, right-tail co-occurrence p-value,
+     left-tail mutual exclusivity p-value, Benjamini-Hochberg FDR correction).
 
-Statistics (pure Python, no scipy): Fisher's exact via the hypergeometric
-distribution (odds ratio + one-sided co-occurrence / mutual-exclusivity
-p-values, Benjamini-Hochberg FDR); triples via observed-vs-expected + Poisson.
+===============================================================================
+INPUT & OUTPUT CONTRACTS
+===============================================================================
+Input:
+  - `results/03_integrated_mutation_expression.tsv`
 
-Inputs:  results/03_integrated_mutation_expression.tsv
-Outputs: results/locus_comutation_driver_pairs.tsv
-         results/locus_comutation_driver_triples.tsv
-         results/locus_comutation_summary.txt
-         figures/fig28_locus_comutation_pairs.png
+Outputs:
+  - `results/locus_comutation_driver_pairs.tsv` (Pairwise locus co-mutation stats)
+  - `results/locus_comutation_driver_triples.tsv` (Triplet locus co-mutation stats)
+  - `results/locus_comutation_summary.txt` (Comprehensive statistical summary log)
+  - `figures/fig28_locus_comutation_pairs.png` (Stacked bar chart of top locus pairs)
 """
+
 import itertools
 import math
 import os
@@ -45,6 +47,9 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
+# =============================================================================
+# FILE PATHS & RESOURCE RESOLUTION
+# =============================================================================
 BASE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 RES = os.path.join(BASE, "results")
 FIG = os.path.join(BASE, "figures")
@@ -54,10 +59,11 @@ OUT_TRIPLES = os.path.join(RES, "locus_comutation_driver_triples.tsv")
 OUT_SUM = os.path.join(RES, "locus_comutation_summary.txt")
 os.makedirs(FIG, exist_ok=True)
 
-MIN_REC = 3        # a specific locus must occur in >= this many tumours to test
-HYPER_CUT = 200    # missense-SNV burden flag - REPORTING ONLY, never a filter
+# Locus Recurrence Cutoff & Hypermutator Annotation Threshold
+MIN_REC = 3
+HYPER_CUT = 200
 
-# ---- Curated colorectal-cancer driver genes (same panel as scripts 10/12) ---
+# Curated Colorectal Cancer Driver Panel
 DRIVERS = [
     "APC", "TP53", "KRAS", "PIK3CA", "FBXW7", "SMAD4", "TCF7L2", "NRAS",
     "SMAD2", "CTNNB1", "BRAF", "SOX9", "ARID1A", "AMER1", "FAM123B", "ATM",
@@ -66,27 +72,35 @@ DRIVERS = [
     "AXIN2", "MAP2K4", "CDC27",
 ]
 
-def log(m): print("[21]", m, flush=True)
+def log(m):
+    """Prints timestamped progress messages to stdout with line flushing."""
+    print("[21]", m, flush=True)
 
-# --- pure-python exact statistics (identical to script 10) ------------------
+# =============================================================================
+# PURE-PYTHON STATISTICAL ENGINE
+# =============================================================================
 def hyper_pmf(x, N, K, n):
+    """Calculates Hypergeometric PMF."""
     if x < max(0, n - (N - K)) or x > min(K, n):
         return 0.0
     return math.comb(K, x) * math.comb(N - K, n - x) / math.comb(N, n)
 
 def fisher_tails(a, nA, nB, N):
+    """Calculates right-tail and left-tail Fisher's exact p-values."""
     lo, hi = max(0, nA + nB - N), min(nA, nB)
     right = sum(hyper_pmf(x, N, nA, nB) for x in range(a, hi + 1))
     left = sum(hyper_pmf(x, N, nA, nB) for x in range(lo, a + 1))
     return min(1.0, right), min(1.0, left)
 
 def poisson_sf(obs, lam):
+    """Calculates Poisson survival function P(X >= obs)."""
     if obs <= 0:
         return 1.0
     cdf = sum(math.exp(-lam) * lam**k / math.factorial(k) for k in range(obs))
     return max(0.0, min(1.0, 1.0 - cdf))
 
 def bh_fdr(pvals):
+    """Applies Benjamini-Hochberg FDR correction."""
     m = len(pvals)
     if m == 0:
         return []
@@ -101,6 +115,7 @@ def bh_fdr(pvals):
     return q
 
 def _fmt(v):
+    """Helper to format statistical floats for TSV output."""
     if isinstance(v, float):
         if v != v:
             return "NA"
@@ -109,8 +124,13 @@ def _fmt(v):
         return f"{v:.3e}"
     return v
 
+# =============================================================================
+# MAIN PIPELINE EXECUTION
+# =============================================================================
 def main():
-    # ---- read header, locate sample columns by TCGA prefix ----------------
+    # =========================================================================
+    # STEP 1: CONSTRUCT LOCUS PRESENCE VECTORS & SAMPLE BURDEN
+    # =========================================================================
     with open(INT) as fh:
         header = fh.readline().rstrip("\n").split("\t")
     s0 = next(i for i, c in enumerate(header) if c.startswith("TCGA"))
@@ -118,41 +138,41 @@ def main():
     N = len(samples)
     driverset = set(DRIVERS)
 
-    # ---- single pass: per-sample burden (ALL rows) + driver locus vectors --
-    burden = np.zeros(N, dtype=np.int32)      # missense-SNV count per tumour
-    loci = {}                                  # (gene, aachange) -> bool vector
+    burden = np.zeros(N, dtype=np.int32)
+    loci = {}
     with open(INT) as fh:
         fh.readline()
         for line in fh:
             p = line.rstrip("\n").split("\t")
             vec = np.fromiter((1 if v == "1" else 0 for v in p[s0:]),
                               dtype=np.int8, count=N)
-            burden += vec                      # burden uses EVERY mutation row
+            burden += vec
             g = p[0]
             if g not in driverset:
                 continue
-            key = (g, p[2])                    # (gene, protein change) = a locus
+            key = (g, p[2])
             if key in loci:
-                loci[key] |= vec               # OR rows sharing this locus
+                loci[key] |= vec
             else:
                 loci[key] = vec.copy()
 
-    # ---- hypermutator flag: REPORTING ONLY, applied to nothing ------------
+    # Annotate hypermutators (reporting only)
     hyper = burden >= HYPER_CUT
     n_hyper = int(hyper.sum())
     log(f"Samples: {N}  |  hypermutators (>= {HYPER_CUT} SNVs, report-only): "
         f"{n_hyper} ({100*n_hyper/N:.1f}%)  |  NO samples excluded")
 
-    # ---- keep only recurrent loci (>= MIN_REC tumours) --------------------
+    # Filter loci with recurrence >= MIN_REC
     rec = {k: int(v.sum()) for k, v in loci.items()}
     kept = [k for k in loci if rec[k] >= MIN_REC]
-    # order by gene (curated order) then descending recurrence
     gorder = {g: i for i, g in enumerate(DRIVERS)}
     kept.sort(key=lambda k: (gorder.get(k[0], 999), -rec[k], k[1]))
     log(f"Driver loci with recurrence >= {MIN_REC}: {len(kept)} "
         f"(from {len(loci)} distinct driver loci)")
 
-    # ---- PAIRS: Fisher's exact at locus level -----------------------------
+    # =========================================================================
+    # STEP 2: PAIRWISE LOCUS-LEVEL FISHER'S EXACT TESTS
+    # =========================================================================
     rows = []
     for kA, kB in itertools.combinations(kept, 2):
         A, B = loci[kA], loci[kB]
@@ -171,7 +191,8 @@ def main():
             Expected=round(nA * nB / N, 3), OddsRatio=round(orr, 3),
             p_cooccur=right, p_exclusive=left,
             SameGene=(kA[0] == kB[0])))
-    # FDR over ALL tested pairs
+    
+    # FDR adjustment across all locus pairs
     for r, q in zip(rows, bh_fdr([r["p_cooccur"] for r in rows])):
         r["FDR_cooccur"] = q
     for r, q in zip(rows, bh_fdr([r["p_exclusive"] for r in rows])):
@@ -182,7 +203,7 @@ def main():
             else "Mutually exclusive" if r["OddsRatio"] < 1 and r["FDR_exclusive"] < 0.05
             else "n.s.")
 
-    # write only pairs that ACTUALLY co-occur (nBoth >= 1), most co-mutated first
+    # Export pairwise locus co-mutations
     co_rows = [r for r in rows if r["nBoth"] >= 1]
     co_rows.sort(key=lambda r: (-r["nBoth"], -r["OddsRatio"]))
     cols = ["GeneA", "LocusA", "recA", "GeneB", "LocusB", "recB", "nBoth",
@@ -200,7 +221,9 @@ def main():
     log(f"Wrote {OUT_PAIRS}: {len(co_rows)} co-occurring locus pairs "
         f"({len(rows)} tested)")
 
-    # ---- TRIPLES: observed vs expected + Poisson --------------------------
+    # =========================================================================
+    # STEP 3: TRIPLET LOCUS-LEVEL CO-MUTATION ANALYSIS
+    # =========================================================================
     trip = []
     for kA, kB, kC in itertools.combinations(kept, 3):
         both = int((loci[kA] & loci[kB] & loci[kC]).sum())
@@ -225,7 +248,9 @@ def main():
             fh.write("\t".join(str(_fmt(r[c])) for c in tcols) + "\n")
     log(f"Wrote {OUT_TRIPLES}: {len(trip)} co-occurring locus triples")
 
-    # ---- SUMMARY ----------------------------------------------------------
+    # =========================================================================
+    # STEP 4: WRITE COMPREHENSIVE SUMMARY LOG
+    # =========================================================================
     sig_co = sorted([r for r in co_rows if r["Relationship"] == "Co-occurring"],
                     key=lambda r: r["FDR_cooccur"])
     with open(OUT_SUM, "w") as fh:
@@ -257,7 +282,6 @@ def main():
             fh.write(f"  {la} + {lb}: both={r['nBoth']} "
                      f"(hyper={r['nBoth_hyper']}, non-hyper={r['nBoth_nonhyper']}), "
                      f"OR={r['OddsRatio']:.2f}, FDR={r['FDR_cooccur']:.2e}\n")
-        # how much of locus co-mutation is carried by hypermutators?
         tot_both = sum(r["nBoth"] for r in co_rows)
         tot_hyper = sum(r["nBoth_hyper"] for r in co_rows)
         fh.write(f"\nAcross all co-occurring locus pairs, "
@@ -270,7 +294,9 @@ def main():
                  "reflect burden. Either way NOTHING is filtered - all are kept.\n")
     log(f"Wrote {OUT_SUM}")
 
-    # ---- FIGURE 28: top co-occurring locus pairs, hyper vs non-hyper split -
+    # =========================================================================
+    # STEP 5: RENDER FIGURE 28 — TOP LOCUS PAIRS BAR CHART (HYPER VS NON-HYPER SPLIT)
+    # =========================================================================
     top = co_rows[:14][::-1]
     if top:
         labels = [f"{r['GeneA']} {r['LocusA']} + {r['GeneB']} {r['LocusB']}"
@@ -297,7 +323,7 @@ def main():
     else:
         log("No co-occurring locus pairs to plot.")
 
-    # ---- console preview --------------------------------------------------
+    # Console preview logging
     log("Top locus co-mutations (both = tumours with BOTH exact mutations):")
     for r in co_rows[:10]:
         print(f"    {r['GeneA']} {r['LocusA']:8s} + {r['GeneB']} {r['LocusB']:8s}  "

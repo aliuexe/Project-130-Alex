@@ -1,47 +1,73 @@
 #!/usr/bin/env python3
-"""
+r"""
 12_cooccurrence_counts.py
-Project 130 - Colorectal cancer (TCGA-COAD)  --  co-mutation (simple counts)
+Project 130 - Colorectal Cancer (TCGA-COAD) Neoantigen Discovery Pipeline
 
-A straightforward view of driver co-mutation: for each pair (and triple) of
-driver genes, how many of the TOTAL tumours carry both/all of them. Every
-number is reported out of the total sample count (indicated explicitly), so a
-value reads as "X of N tumours (Y%)". No odds ratios here - just counts.
+===============================================================================
+BIOLOGICAL & COMPUTATIONAL PURPOSE
+===============================================================================
+This script provides exact integer patient co-occurrence count matrices and
+visualizations for driver gene pairs and triplets without statistical models.
+Every co-occurrence figure is reported explicitly out of the total cohort size
+$N = 586$ TCGA-COAD tumours ($X$ of $N$, $Y\%$).
 
-Level: gene-level (a gene is "mutated" in a sample if ANY of its filtered
-missense SNVs is present), restricted to the curated CRC driver panel.
+===============================================================================
+COMPUTATIONAL METHODOLOGY
+===============================================================================
+- Bitwise Matrix Intersections: Evaluates patient set overlaps using boolean vector
+  intersections (`present[gA] & present[gB]`).
+- Matrix Construction: Outputs a symmetric $34 \times 34$ driver co-occurrence matrix
+  where diagonal values represent individual gene mutation counts.
 
-Inputs:  results/03_integrated_mutation_expression.tsv
-Outputs: results/cooccurrence_counts_matrix.tsv   (genes x genes, counts)
-         results/cooccurrence_pairs_simple.tsv     (ranked pairs, X of N, %)
-         results/cooccurrence_triples_simple.tsv    (ranked triples, X of N, %)
-         figures/fig17_cooccurrence_counts_heatmap.png
-         figures/fig18_top_cooccurring_pairs.png
+===============================================================================
+INPUT & OUTPUT CONTRACTS
+===============================================================================
+Input:
+  - `results/03_integrated_mutation_expression.tsv`
+
+Outputs:
+  - `results/cooccurrence_counts_matrix.tsv` (Symmetric count matrix)
+  - `results/cooccurrence_pairs_simple.tsv` (Ranked pairs with sample counts)
+  - `results/cooccurrence_triples_simple.tsv` (Ranked triplets with sample counts)
+  - `figures/fig17_cooccurrence_counts_heatmap.png`
+  - `figures/fig18_top_cooccurring_pairs.png`
 """
+
 import itertools, os, sys
 import numpy as np
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
+# =============================================================================
+# FILE PATHS & RESOURCE RESOLUTION
+# =============================================================================
 BASE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 RES = os.path.join(BASE, "results"); FIG = os.path.join(BASE, "figures")
 INT = os.path.join(RES, "03_integrated_mutation_expression.tsv")
 os.makedirs(FIG, exist_ok=True)
 
+# Curated CRC Driver Panel
 DRIVERS = ["APC","TP53","KRAS","PIK3CA","FBXW7","SMAD4","TCF7L2","NRAS","SMAD2",
     "CTNNB1","BRAF","SOX9","ARID1A","AMER1","ATM","KMT2C","KMT2D","ERBB2","ERBB3",
     "PTEN","ACVR2A","GNAS","BMPR1A","TGFBR2","RNF43","B2M","POLE","MSH6","CASP8",
     "ELF3","PCBP1","AXIN2","MAP2K4","CDC27"]
 
-def log(m): print("[12]", m, flush=True)
+def log(m):
+    """Prints timestamped progress messages to stdout with line flushing."""
+    print("[12]", m, flush=True)
 
+# =============================================================================
+# MAIN PIPELINE EXECUTION
+# =============================================================================
 def main():
-    # ---- build gene-level presence for driver genes ----------------------
+    # =========================================================================
+    # STEP 1: CONSTRUCT GENE-LEVEL PRESENCE VECTORS
+    # =========================================================================
     with open(INT) as fh:
         header = fh.readline().rstrip("\n").split("\t")
     s0 = next(i for i, c in enumerate(header) if c.startswith("TCGA"))
-    N = len(header) - s0                                  # TOTAL number of tumours
+    N = len(header) - s0                                  # Total number of tumour samples
     dset = set(DRIVERS); present = {}
     with open(INT) as fh:
         fh.readline()
@@ -55,7 +81,9 @@ def main():
     counts = {g: int(present[g].sum()) for g in genes}
     log(f"TOTAL tumour samples (N) = {N}; driver genes = {len(genes)}")
 
-    # ---- pairwise co-occurrence COUNTS -----------------------------------
+    # =========================================================================
+    # STEP 2: PAIRWISE CO-OCCURRENCE COUNTS
+    # =========================================================================
     pairs = []
     for gA, gB in itertools.combinations(genes, 2):
         both = int((present[gA] & present[gB]).sum())
@@ -70,7 +98,9 @@ def main():
                      f"{counts[gB]}\t{N}\n")
     log("wrote cooccurrence_pairs_simple.tsv")
 
-    # ---- triple co-occurrence COUNTS -------------------------------------
+    # =========================================================================
+    # STEP 3: TRIPLET CO-OCCURRENCE COUNTS
+    # =========================================================================
     trips = []
     for gA, gB, gC in itertools.combinations(genes, 3):
         both = int((present[gA] & present[gB] & present[gC]).sum())
@@ -84,7 +114,9 @@ def main():
             fh.write(f"{gA}\t{gB}\t{gC}\t{both}\t{100*both/N:.1f}\t{N}\n")
     log("wrote cooccurrence_triples_simple.tsv")
 
-    # ---- genes x genes count matrix (diagonal = single-gene total) -------
+    # =========================================================================
+    # STEP 4: CO-OCCURRENCE COUNT MATRIX EXPORT
+    # =========================================================================
     order = sorted(genes, key=lambda g: -counts[g])
     with open(os.path.join(RES, "cooccurrence_counts_matrix.tsv"), "w") as fh:
         fh.write(f"# Values = number of tumours mutated in BOTH genes. "
@@ -100,7 +132,9 @@ def main():
             fh.write("\t".join(row) + "\n")
     log("wrote cooccurrence_counts_matrix.tsv")
 
-    # ---- FIGURE 17: count heatmap (top 16 drivers) -----------------------
+    # =========================================================================
+    # STEP 5: RENDER FIGURE 17 — COUNT HEATMAP (TOP 16 DRIVERS)
+    # =========================================================================
     top = order[:16]; n = len(top)
     M = np.zeros((n, n), dtype=int)
     for i, gA in enumerate(top):
@@ -121,7 +155,9 @@ def main():
     fig.tight_layout(); fig.savefig(os.path.join(FIG, "fig17_cooccurrence_counts_heatmap.png"))
     plt.close(fig); log("wrote fig17_cooccurrence_counts_heatmap.png")
 
-    # ---- FIGURE 18: top co-occurring pairs, as X of N (%) ----------------
+    # =========================================================================
+    # STEP 6: RENDER FIGURE 18 — TOP CO-OCCURRING PAIRS BAR CHART
+    # =========================================================================
     toppairs = pairs[:14][::-1]
     labels = [f"{a}+{b}" for a, b, _ in toppairs]
     vals = [both for _, _, both in toppairs]
@@ -138,7 +174,7 @@ def main():
     fig.tight_layout(); fig.savefig(os.path.join(FIG, "fig18_top_cooccurring_pairs.png"))
     plt.close(fig); log("wrote fig18_top_cooccurring_pairs.png")
 
-    # ---- console preview --------------------------------------------------
+    # Console preview logging
     log(f"Top co-occurring driver pairs (of N={N}):")
     for gA, gB, both in pairs[:10]:
         print(f"    {gA:7s}+{gB:8s} {both:3d} / {N}  ({100*both/N:.1f}%)")

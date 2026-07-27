@@ -1,13 +1,45 @@
 #!/usr/bin/env python3
-"""
+r"""
 18_hotspot_audit.py
-Project 130 - Hotspot audit using BigMHC presentation probabilities.
+Project 130 - Colorectal Cancer (TCGA-COAD) Neoantigen Discovery Pipeline
 
-Verifies that no recurrent hotspots are dropped by hypermutation filtering,
-and documents reasons for drops (e.g. non-presentation to HLA panel).
+===============================================================================
+BIOLOGICAL & COMPUTATIONAL PURPOSE
+===============================================================================
+This script performs a rigorous clinical audit across all 42 highly recurrent
+somatic mutation hotspots ($\ge 5$ tumours in TCGA-COAD).
+
+Motivation: Ensures zero recurrent hotspots (e.g. KRAS G12V/G12D/G12C, TP53 hotspots,
+PIK3CA E542K/E545K) are lost due to filtering artefacts, documenting explicit,
+mechanistic reasons for any candidate exclusion.
+
+===============================================================================
+HOTSPOT AUDIT & DROP REASON CATEGORIZATION
+===============================================================================
+For every recurrent mutation ($\ge 5$ tumours), the script checks all 5 practical gates:
+  1. Presentation Deficit: `BigMHC_EL < 0.50` on Option A HLA panel.
+  2. Lack of Differential Agretopicity: Wild-type peptide also presented (`WT_EL >= 0.50`).
+  3. Low Gene Expression: `GeneLevelTPM < 10.0`.
+  4. Subclonal Architecture: `ClonalClass == Subclonal` (`medianVAF < 0.25`).
+  5. Tumour Suppressor Gene (TSG) Context: Categorizes genes as Oncogenes vs Tumour Suppressors.
+
+===============================================================================
+INPUT & OUTPUT CONTRACTS
+===============================================================================
+Inputs:
+  - `results/03_integrated_mutation_expression.tsv`
+  - `results/04_neoantigen_predictions.tsv`
+  - `results/mutation_clonality.tsv`
+
+Output:
+  - `results/recurrent_hotspot_audit.tsv` (Audit table for all 42 hotspots)
 """
+
 import os, sys
 
+# =============================================================================
+# FILE PATHS & RESOURCE RESOLUTION
+# =============================================================================
 BASE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 RES = os.path.join(BASE, "results")
 INT = os.path.join(RES, "03_integrated_mutation_expression.tsv")
@@ -15,14 +47,23 @@ NEO = os.path.join(RES, "04_neoantigen_predictions.tsv")
 CLON = os.path.join(RES, "mutation_clonality.tsv")
 OUT = os.path.join(RES, "recurrent_hotspot_audit.tsv")
 
+# Thresholds & Curated Tumour Suppressor List
 MIN_RECUR = 5
 TS_GENES = {"TP53","APC","PTEN","SMAD4","FBXW7","RB1","STK11","ARID1A","ATM",
             "SMAD2","TGFBR2","BMPR1A","ACVR2A","B2M","CASP8","RNF43","AXIN2"}
 EL_PRESENT, EL_WT_NONPRESENT, TPM_MIN = 0.50, 0.50, 10.0
 
-def log(m): print("[18]", m, flush=True)
+def log(m):
+    """Prints timestamped progress messages to stdout with line flushing."""
+    print("[18]", m, flush=True)
 
+# =============================================================================
+# MAIN PIPELINE EXECUTION
+# =============================================================================
 def main():
+    # =========================================================================
+    # STEP 1: IDENTIFY ALL RECURRENT HOTSPOTS (>= 5 TUMOURS)
+    # =========================================================================
     recur, tpm = {}, {}
     with open(INT) as fh:
         header = fh.readline().rstrip("\n").split("\t")
@@ -36,6 +77,7 @@ def main():
     hot = {k for k, v in recur.items() if v >= MIN_RECUR}
     log(f"recurrent hotspots (>= {MIN_RECUR} tumours): {len(hot)}")
 
+    # Load clonality mapping
     clon = {}
     with open(CLON) as fh:
         h = fh.readline().rstrip("\n").split("\t"); ix = {c: i for i, c in enumerate(h)}
@@ -44,6 +86,9 @@ def main():
             clon[(q[ix["GeneName"]], q[ix["ProteinChange"]])] = (
                 q[ix["ClonalClass"]], q[ix["medianVAF"]])
 
+    # =========================================================================
+    # STEP 2: FIND BEST BIGMHC PRESENTATION FOR EACH HOTSPOT
+    # =========================================================================
     best = {}   # (gene,pchg) -> (el, allele, pclass, wt_el)
     with open(NEO) as fh:
         fh.readline()
@@ -61,6 +106,9 @@ def main():
             if key not in best or el > best[key][0]:
                 best[key] = (el, p[13], p[16], wt)
 
+    # =========================================================================
+    # STEP 3: AUDIT EACH HOTSPOT AND WRITE DETAILED REASONING
+    # =========================================================================
     rows = []
     for key in sorted(hot, key=lambda k: -recur[k]):
         g, pc = key
@@ -88,6 +136,7 @@ def main():
                      "TumourSuppressor" if g in TS_GENES else "Other",
                      status, reason])
 
+    # Export Hotspot Audit Table
     cols = ["GeneName","ProteinChange","Recurrence","ClonalClass","medianVAF",
             "BestMut_EL","BestAllele","PresentationClass","WT_EL","GeneLevelTPM",
             "GeneClass","Status","DropReason"]

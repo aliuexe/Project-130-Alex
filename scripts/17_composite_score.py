@@ -1,19 +1,40 @@
 #!/usr/bin/env python3
-"""
+r"""
 17_composite_score.py
-Project 130 - Colorectal cancer (TCGA-COAD)  --  final ranked neoantigen table (BigMHC)
+Project 130 - Colorectal Cancer (TCGA-COAD) Neoantigen Discovery Pipeline
 
-Combines five NON-REDUNDANT axes:
-  1. Presentation   mutant peptide is presented   (BigMHC_EL, higher = better)
-  2. Immunogenicity T cell can recognise it       (BigMHC_IM / Calis score, higher = better)
-  3. Expression     protein is actually made      (GeneLevelTPM, higher = better)
-  4. Clonality      present in all tumour cells    (median VAF, higher = better)
-  5. Recurrence     shared across patients         (tumours covered, higher = better)
+===============================================================================
+BIOLOGICAL & COMPUTATIONAL PURPOSE
+===============================================================================
+This script builds the final 5-axis composite quality scoring system to rank all
+practical neoantigens for the multi-epitope vaccine proposal (`results/neoantigen_ranked_final.tsv`).
 
-Input:  results/practical_neoantigens_scored.tsv, results/mutation_clonality.tsv
-Output: results/neoantigen_ranked_final.tsv
-        figures/fig26_composite_top_candidates.png
+===============================================================================
+5-AXIS COMPOSITE QUALITY SCORING FORMULATION
+===============================================================================
+Combines 5 orthogonal, non-redundant clinical quality metrics:
+  1. Presentation (`pct_Presentation`): Percentile rank of `Mutant_EL` (cell-surface presentation probability).
+  2. Immunogenicity (`pct_Immunogenicity`): Percentile rank of `ImmunogenicityScore` (Calis/IEDB TCR contact score).
+  3. Expression (`pct_Expression`): Percentile rank of `GeneLevelTPM` (mRNAbundance).
+  4. Clonality (`pct_Clonality`): Percentile rank of `medianVAF` (truncal tumor cell fraction).
+  5. Recurrence (`pct_Recurrence`): Log-scaled patient recurrence:
+       \text{pct\_Recurrence} = \frac{\log_{10}(1 + \text{TumoursCovered})}{\log_{10}(1 + \max(\text{TumoursCovered}))}
+
+Composite Quality Score Formula:
+    \text{CompositeScore} = \frac{1}{5} \sum_{a \in \text{AXES}} \text{pct}_a
+
+===============================================================================
+INPUT & OUTPUT CONTRACTS
+===============================================================================
+Inputs:
+  - `results/practical_neoantigens_scored.tsv`
+  - `results/mutation_clonality.tsv`
+
+Outputs:
+  - `results/neoantigen_ranked_final.tsv` (Final ranked neoantigen database)
+  - `figures/fig26_composite_top_candidates.png` (Stacked 5-axis component bar chart)
 """
+
 import os, sys
 import numpy as np
 import pandas as pd
@@ -21,19 +42,31 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
+# =============================================================================
+# FILE PATHS & RESOURCE RESOLUTION
+# =============================================================================
 BASE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 RES = os.path.join(BASE, "results"); FIG = os.path.join(BASE, "figures")
 SCORED = os.path.join(RES, "practical_neoantigens_scored.tsv")
 CLON = os.path.join(RES, "mutation_clonality.tsv")
 OUT = os.path.join(RES, "neoantigen_ranked_final.tsv")
 
+# 5 Non-Redundant Clinical Axes
 AXES = ["Presentation", "Immunogenicity", "Expression", "Clonality", "Recurrence"]
 COLORS = {"Presentation":"#4477AA","Immunogenicity":"#EE6677","Expression":"#228833",
           "Clonality":"#EE7733","Recurrence":"#AA3377"}
 
-def log(m): print("[17]", m, flush=True)
+def log(m):
+    """Prints timestamped progress messages to stdout with line flushing."""
+    print("[17]", m, flush=True)
 
+# =============================================================================
+# MAIN PIPELINE EXECUTION
+# =============================================================================
 def main():
+    # =========================================================================
+    # STEP 1: PARSE SCORED CANDIDATES AND MERGE VAF METRICS
+    # =========================================================================
     df = pd.read_csv(SCORED, sep="\t", comment="#")
     clon = pd.read_csv(CLON, sep="\t")[["GeneName","ProteinChange","medianVAF"]]
     df = df.merge(clon, on=["GeneName","ProteinChange"], how="left")
@@ -45,8 +78,11 @@ def main():
     df = df.dropna(subset=need).reset_index(drop=True)
     log(f"candidates scored with BigMHC: {len(df)} (of {n0})")
 
-    # Percentile ranks (higher = better)
-    df["pct_Presentation"]   = df["Mutant_EL"].rank(pct=True)      # higher BigMHC_EL -> higher pct
+    # =========================================================================
+    # STEP 2: CALCULATE PERCENTILE RANKS & COMPOSITE SCORE
+    # =========================================================================
+    # Percentile ranks across candidate distribution
+    df["pct_Presentation"]   = df["Mutant_EL"].rank(pct=True)
     df["pct_Immunogenicity"] = df["ImmunogenicityScore"].rank(pct=True)
     df["pct_Expression"]     = df["GeneLevelTPM"].rank(pct=True)
     df["pct_Clonality"]      = df["medianVAF"].rank(pct=True)
@@ -54,10 +90,12 @@ def main():
                                 / np.log10(1 + df["TumoursCovered"].max()))
     pcts = [f"pct_{a}" for a in AXES]
 
+    # Calculate 5-axis unweighted mean composite score
     df["CompositeScore"] = df[pcts].mean(axis=1).round(4)
     df = df.sort_values("CompositeScore", ascending=False).reset_index(drop=True)
     df["Rank"] = np.arange(1, len(df)+1)
 
+    # Export final ranked neoantigens
     keep = (["Rank","GeneName","ProteinChange","Peptide","HLAAllele",
              "Mutant_EL","WT_EL","ImmunogenicityScore","MutationAtAnchor",
              "GeneLevelTPM","medianVAF","MutationFrequency","TumoursCovered",
@@ -65,6 +103,7 @@ def main():
     df[keep].to_csv(OUT, sep="\t", index=False)
     log(f"wrote {OUT}")
 
+    # Console preview logging for Top 12 composite candidates
     log("Top 12 by BigMHC composite score:")
     for _,r in df.head(12).iterrows():
         print(f"  #{int(r.Rank):2d} {r.GeneName:8s}{r.ProteinChange:9s} {r.Peptide} "
@@ -72,7 +111,9 @@ def main():
               f"(pres {r.pct_Presentation:.2f} imm {r.pct_Immunogenicity:.2f} "
               f"expr {r.pct_Expression:.2f} clon {r.pct_Clonality:.2f} rec {r.pct_Recurrence:.2f})")
 
-    # Stacked bar plot for top 15
+    # =========================================================================
+    # STEP 3: RENDER FIGURE 26 — STACKED 5-AXIS COMPONENT BAR CHART
+    # =========================================================================
     top = df.head(15).iloc[::-1]
     fig, ax = plt.subplots(figsize=(11.5, 7))
     left = np.zeros(len(top))

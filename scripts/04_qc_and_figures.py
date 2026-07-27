@@ -1,35 +1,54 @@
 #!/usr/bin/env python3
 """
 04_qc_and_figures.py
-Project 130 - Colorectal cancer (TCGA-COAD)
+Project 130 - Colorectal Cancer (TCGA-COAD) Neoantigen Discovery Pipeline
 
-Performs the Basic Data Quality Control checks and produces the required
-figures.
+===============================================================================
+BIOLOGICAL & COMPUTATIONAL PURPOSE
+===============================================================================
+This script implements Section 8 of the project assignment (Basic Data Quality
+Control & Exploratory Figures). It performs systematic statistical quality
+control on the integrated dataset (Deliverables 01–03) and renders the four
+required core assignment figures:
 
-Assignment section implemented:
-  Section 8 (Basic Data Quality Control). Reports:
-    - Number of mutations before and after filtering
-    - Number of unique genes
-    - Number of tumour samples
-    - Percentage of missing expression values
-    - Consistency of gene identifiers
-    - Consistency of reference genome assembly
-    - Distribution of GeneLevelTPM values
-    - The ten most frequently mutated genes
-    - The ten most highly expressed mutated genes
-  And at least two figures (we produce all four suggested):
-    1. Bar plot of the most frequently mutated genes
-    2. Histogram / density plot of GeneLevelTPM
-    3. Heat map of selected mutations across samples
-    4. Plot comparing mutation frequency with gene expression
+  1. Figure 1 (`fig1_top_mutated_genes.png`): Horizontal bar chart of the 10
+     most frequently mutated genes across the cohort.
+  2. Figure 2 (`fig2_genelevel_tpm_distribution.png`): Histogram of log10
+     `GeneLevelTPM` values displaying expression distribution across mutations.
+  3. Figure 3 (`fig3_mutation_heatmap.png`): Binary heatmap (presence/absence)
+     of the 30 most recurrent somatic mutations across 60 representative tumour
+     samples.
+  4. Figure 4 (`fig4_freq_vs_expression.png`): Scatter plot comparing per-gene
+     mutation frequency with median gene expression (`GeneLevelTPM`).
+
+===============================================================================
+QUALITY CONTROL AUDIT CHECKS (§8)
+===============================================================================
+- Verification of mutation filtering counts (raw vs filtered).
+- Auditing unique gene symbol count and tumour sample count.
+- Reporting percentage missing values in the expression dataset.
+- Asserting gene identifier consistency (HGNC/Hugo symbols).
+- Asserting reference genome assembly consistency (GRCh38/hg38).
+- Describing `GeneLevelTPM` parametric and non-parametric dispersion statistics.
+
+===============================================================================
+INPUT & OUTPUT CONTRACTS
+===============================================================================
+Inputs:
+  - `results/01_mutation_by_sample.tsv`
+  - `results/02_gene_by_sample_TPM.tsv`
+  - `results/03_integrated_mutation_expression.tsv`
+  - `results/qc_mutation_counts.txt`
+  - `results/expression_metadata.txt`
 
 Outputs:
-  results/qc_report.txt
-  figures/fig1_top_mutated_genes.png
-  figures/fig2_genelevel_tpm_distribution.png
-  figures/fig3_mutation_heatmap.png
-  figures/fig4_freq_vs_expression.png
+  - `results/qc_report.txt` (Comprehensive QC Summary Report)
+  - `figures/fig1_top_mutated_genes.png`
+  - `figures/fig2_genelevel_tpm_distribution.png`
+  - `figures/fig3_mutation_heatmap.png`
+  - `figures/fig4_freq_vs_expression.png`
 """
+
 import os
 import sys
 import numpy as np
@@ -38,6 +57,9 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
+# =============================================================================
+# FILE PATHS & RESOURCE RESOLUTION
+# =============================================================================
 BASE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 RES = os.path.join(BASE, "results")
 FIG = os.path.join(BASE, "figures")
@@ -50,16 +72,22 @@ REPORT = os.path.join(RES, "qc_report.txt")
 
 os.makedirs(FIG, exist_ok=True)
 
-def log(m): print(f"[04] {m}", flush=True)
+def log(m):
+    """Prints timestamped progress messages to stdout with line flushing."""
+    print(f"[04] {m}", flush=True)
 
 def read_integrated_lean():
-    """Read integrated matrix, computing per-mutation frequency without
-    holding all sample columns as floats. Returns a frame with keys +
-    GeneLevelTPM + MutationFrequency (count of 1s across samples)."""
+    """
+    Memory-efficient stream reader for the integrated matrix (Deliverable 03).
+    Locates TCGA sample columns dynamically without casting sample values to floats.
+    
+    Returns:
+      df: DataFrame with (GeneName, Mutation, AminoAcidChange, GeneLevelTPM, MutationFrequency)
+      n_samples: Count of tumour samples
+    """
     with open(INT) as fh:
         header = fh.readline().rstrip("\n").split("\t")
-    # locate the first sample column by its TCGA barcode prefix (robust to
-    # metadata columns such as GeneLevelTPM / GeneLevelTPM_SD before it)
+    # Locate first sample column using TCGA barcode prefix
     s0 = next(i for i, c in enumerate(header) if c.startswith("TCGA"))
     sample_cols = header[s0:]
     keys, glt, freq = [], [], []
@@ -69,7 +97,7 @@ def read_integrated_lean():
             p = line.rstrip("\n").split("\t")
             keys.append((p[0], p[1], p[2]))
             glt.append(np.nan if p[3] == "NA" else float(p[3]))
-            # sample values are '0'/'1' strings
+            # Sum binary 0/1 sample presence strings
             freq.append(sum(1 for v in p[s0:] if v == "1"))
     df = pd.DataFrame(keys, columns=["GeneName", "Mutation", "AminoAcidChange"])
     df["GeneLevelTPM"] = glt
@@ -80,8 +108,9 @@ def main():
     log("Reading integrated matrix (lean)")
     idf, n_samples = read_integrated_lean()
 
-    # ---- Counts -----------------------------------------------------------
-    # before/after filtering counts come from the mutation QC file
+    # =========================================================================
+    # STEP 1: COMPUTE SUMMARY COUNTS AND RECOVER QC LOGS
+    # =========================================================================
     mut_before = mut_after = None
     for line in open(QC_MUT):
         if "before filtering" in line: mut_before = int(line.split(":")[1])
@@ -89,25 +118,26 @@ def main():
     n_distinct_mut = len(idf)
     n_unique_genes = idf["GeneName"].nunique()
 
-    # ---- Missing expression % (from expression metadata) ------------------
+    # Parse missing expression percentage from metadata log
     pct_missing = None
     for line in open(EXPR_META):
         if "Percentage missing" in line:
             pct_missing = line.split(":")[1].strip()
 
-    # ---- Top 10 most frequently mutated genes -----------------------------
+    # Calculate Top 10 most frequently mutated genes across the cohort
     gene_freq = (idf.groupby("GeneName")["MutationFrequency"].sum()
                  .sort_values(ascending=False))
     top10_mutated = gene_freq.head(10)
 
-    # ---- Top 10 most highly expressed mutated genes -----------------------
-    # unique gene -> GeneLevelTPM (same for all its mutations)
+    # Calculate Top 10 most highly expressed mutated genes
     gene_tpm = (idf.dropna(subset=["GeneLevelTPM"])
                 .groupby("GeneName")["GeneLevelTPM"].first()
                 .sort_values(ascending=False))
     top10_expressed = gene_tpm.head(10)
 
-    # ---- Write QC report --------------------------------------------------
+    # =========================================================================
+    # STEP 2: WRITE COMPREHENSIVE SECTION 8 QC REPORT
+    # =========================================================================
     with open(REPORT, "w") as fh:
         fh.write("=" * 64 + "\n")
         fh.write("BASIC DATA QUALITY CONTROL REPORT (Section 8)\n")
@@ -136,7 +166,9 @@ def main():
             fh.write(f"  {g:12s} {v:.2f}\n")
     log(f"Wrote {REPORT}")
 
-    # ---- Figure 1: bar plot of most frequently mutated genes --------------
+    # =========================================================================
+    # STEP 3: RENDER FIGURE 1 — TOP MUTATED GENES BAR CHART
+    # =========================================================================
     plt.figure(figsize=(8, 5))
     top10_mutated[::-1].plot(kind="barh", color="#4477AA")
     plt.xlabel("Total mutation occurrences across tumour samples")
@@ -146,7 +178,9 @@ def main():
     plt.savefig(os.path.join(FIG, "fig1_top_mutated_genes.png"), dpi=150)
     plt.close()
 
-    # ---- Figure 2: histogram of GeneLevelTPM (log10) ----------------------
+    # =========================================================================
+    # STEP 4: RENDER FIGURE 2 — GENELEVEL_TPM HISTOGRAM (LOG SCALE)
+    # =========================================================================
     vals = idf["GeneLevelTPM"].dropna()
     vals = vals[vals > 0]
     plt.figure(figsize=(8, 5))
@@ -159,8 +193,9 @@ def main():
                 dpi=150)
     plt.close()
 
-    # ---- Figure 3: heatmap of top recurrent mutations across samples ------
-    # select the 30 most recurrent distinct mutations, show first 60 samples
+    # =========================================================================
+    # STEP 5: RENDER FIGURE 3 — MUTATION PRESENCE/ABSENCE HEATMAP
+    # =========================================================================
     top_mut = idf.sort_values("MutationFrequency", ascending=False).head(30)
     top_labels = (top_mut["GeneName"] + " " + top_mut["AminoAcidChange"]).tolist()
     with open(INT) as fh:
@@ -178,7 +213,6 @@ def main():
             p = line.rstrip("\n").split("\t")
             if (p[0], p[1], p[2]) in wanted:
                 hmat.append([int(p[j]) for j in show_idx])
-    # order rows same as top_labels
     order = {(r.GeneName, r.Mutation, r.AminoAcidChange): i
              for i, r in enumerate(top_mut.itertuples())}
     rows_keyed = []
@@ -201,7 +235,9 @@ def main():
     plt.savefig(os.path.join(FIG, "fig3_mutation_heatmap.png"), dpi=150)
     plt.close()
 
-    # ---- Figure 4: mutation frequency vs gene expression ------------------
+    # =========================================================================
+    # STEP 6: RENDER FIGURE 4 — MUTATION FREQUENCY VS EXPRESSION SCATTER
+    # =========================================================================
     gdf = idf.dropna(subset=["GeneLevelTPM"]).copy()
     gene_agg = gdf.groupby("GeneName").agg(
         freq=("MutationFrequency", "sum"),
@@ -210,7 +246,7 @@ def main():
     plt.figure(figsize=(8, 6))
     plt.scatter(np.log10(gene_agg["tpm"]), gene_agg["freq"],
                 s=8, alpha=0.35, color="#EE6677")
-    # annotate top mutated genes
+    # Annotate Top 10 mutated genes on scatter plot
     for _, r in gene_agg.sort_values("freq", ascending=False).head(10).iterrows():
         plt.annotate(r["GeneName"], (np.log10(r["tpm"]), r["freq"]),
                      fontsize=8)

@@ -1,25 +1,66 @@
 #!/usr/bin/env python3
 """
-11_comutation_figures.py  --  figures for the driver co-mutation extension.
-Reads comutation_driver_pairs.tsv + deliverable 03; writes three figures.
+11_comutation_figures.py
+Project 130 - Colorectal Cancer (TCGA-COAD) Neoantigen Discovery Pipeline
+
+===============================================================================
+BIOLOGICAL & COMPUTATIONAL PURPOSE
+===============================================================================
+This script renders the core co-mutation extension figures (Figures 14, 15, and 16).
+It parses pairwise driver co-mutation statistics generated in Script 10 (`results/comutation_driver_pairs.tsv`)
+and Deliverable 03 to visualize driver co-occurrence, mutual exclusivity, and
+per-tumour driver mutation burden.
+
+===============================================================================
+FIGURE INDEX & VISUALIZATIONS PRODUCED
+===============================================================================
+  1. Figure 14 (`fig14_comutation_heatmap.png`): Symmetric $16 \times 16$ log2 odds ratio
+     heatmap of top driver pairs. Statistically significant co-occurrence ($q < 0.05$)
+     is annotated with `+` symbols; mutual exclusivity ($q < 0.05$) with `–` symbols.
+  2. Figure 15 (`fig15_comutation_pairs.png`): Side-by-side bar plots detailing top
+     co-occurring driver pairs (by sample overlap) and mutually exclusive pairs.
+  3. Figure 16 (`fig16_driver_load.png`): Per-tumour co-mutation burden histogram
+     displaying the frequency of tumours carrying 0, 1, 2, 3+ driver mutations.
+
+===============================================================================
+INPUT & OUTPUT CONTRACTS
+===============================================================================
+Inputs:
+  - `results/comutation_driver_pairs.tsv`
+  - `results/03_integrated_mutation_expression.tsv`
+
+Outputs:
+  - `figures/fig14_comutation_heatmap.png`
+  - `figures/fig15_comutation_pairs.png`
+  - `figures/fig16_driver_load.png`
 """
+
 import os, sys, math
 import numpy as np
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
+# =============================================================================
+# FILE PATHS & RESOURCE RESOLUTION
+# =============================================================================
 BASE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 RES = os.path.join(BASE, "results"); FIG = os.path.join(BASE, "figures")
 PAIRS = os.path.join(RES, "comutation_driver_pairs.tsv")
 INT = os.path.join(RES, "03_integrated_mutation_expression.tsv")
 os.makedirs(FIG, exist_ok=True)
+
+# Consistent Styling Options
 plt.rcParams.update({"figure.dpi":150,"savefig.dpi":160,"font.size":12,
     "axes.titlesize":15,"axes.titleweight":"bold","axes.spines.top":False,
     "axes.spines.right":False})
 BLUE, RED, TEAL, GREEN, ORANGE, PURPLE = "#4477AA","#EE6677","#66CCEE","#228833","#EE7733","#AA3377"
 
+# =============================================================================
+# HELPER DATA LOADING
+# =============================================================================
 def load_pairs():
+    """Parses pairwise co-mutation statistics TSV into dictionary records."""
     rows=[]
     with open(PAIRS) as fh:
         hdr=fh.readline().rstrip("\n").split("\t"); ix={c:i for i,c in enumerate(hdr)}
@@ -31,7 +72,11 @@ def load_pairs():
                 rel=p[ix["Relationship"]]))
     return rows
 
+# =============================================================================
+# FIGURE RENDERING FUNCTIONS
+# =============================================================================
 def fig_heatmap(rows):
+    """Figure 14: Log2 Odds Ratio Co-mutation Heatmap."""
     freq={}
     for r in rows:
         freq[r["A"]]=r["nA"]; freq[r["B"]]=r["nB"]
@@ -59,6 +104,7 @@ def fig_heatmap(rows):
     print("[11] wrote fig14_comutation_heatmap.png")
 
 def fig_pairs(rows):
+    """Figure 15: Top Co-occurring and Mutually Exclusive Pairs."""
     co=sorted([r for r in rows if r["rel"]=="Co-occurring"], key=lambda r:-r["nBoth"])[:8]
     ex=sorted([r for r in rows if r["rel"]=="Mutually exclusive"], key=lambda r:r["fex"])[:6]
     fig,(ax1,ax2)=plt.subplots(1,2,figsize=(13,5.5))
@@ -78,6 +124,7 @@ def fig_pairs(rows):
     print("[11] wrote fig15_comutation_pairs.png")
 
 def fig_load():
+    """Figure 16: Per-tumour Driver Burden Histogram."""
     with open(INT) as fh: header=fh.readline().rstrip("\n").split("\t")
     s0=next(i for i,c in enumerate(header) if c.startswith("TCGA"))
     samples=header[s0:]; N=len(samples)
@@ -110,6 +157,9 @@ def fig_load():
     fig.tight_layout(); fig.savefig(os.path.join(FIG,"fig16_driver_load.png")); plt.close(fig)
     print(f"[11] wrote fig16_driver_load.png  (>=2:{n2}, >=3:{n3})")
 
+# =============================================================================
+# MAIN PIPELINE EXECUTION
+# =============================================================================
 def main():
     rows=load_pairs(); fig_heatmap(rows); fig_pairs(rows); fig_load()
 

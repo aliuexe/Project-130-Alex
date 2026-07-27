@@ -1,10 +1,51 @@
 #!/usr/bin/env python3
 """
 09_make_figures.py
-Project 130 - presentation-quality figures using BigMHC presentation probabilities.
-Reads results/figure_summary.json (from script 08) + the shortlist, and
-emits figures 5-13 into figures/.
+Project 130 - Colorectal Cancer (TCGA-COAD) Neoantigen Discovery Pipeline
+
+===============================================================================
+BIOLOGICAL & COMPUTATIONAL PURPOSE
+===============================================================================
+This script renders publication-quality figures (Figures 5 through 13) for the
+oral presentation and final project report. It reads pre-aggregated summary
+data from `results/figure_summary.json` (Script 08) and `results/neoantigen_candidates_shortlist.tsv`
+(Script 07), enabling fast rendering without re-parsing multi-gigabyte matrices.
+
+===============================================================================
+FIGURE INDEX & VISUALIZATIONS PRODUCED
+===============================================================================
+  1. Figure 5 (`fig5_methods_funnel.png`): Quantitative analysis funnel from 310k
+     raw MAF records down to 1,536 candidate neoantigens.
+  2. Figure 6 (`fig6_variant_classification.png`): MAF variant class distribution
+     highlighting missense SNVs.
+  3. Figure 7 (`fig7_mut_vs_wt_affinity.png`): BigMHC presentation probability
+     distribution comparison (Mutant vs Wild-Type).
+  4. Figure 8 (`fig8_delta_affinity.png`): DeltaPresentation distribution (`Mut_EL - WT_EL`).
+  5. Figure 9 (`fig9_binder_class_mut_vs_wt.png`): Presenter class counts (Strong, Weak, Non-presenter).
+  6. Figure 10 (`fig10_strong_binders_by_allele.png`): Strong presenters per HLA allele.
+  7. Figure 11 (`fig11_mut_vs_wt_scatter.png`): Scatter plot of Mutant vs WT BigMHC_EL.
+  8. Figure 12 (`fig12_top_candidates.png`): Top 15 shortlisted neoantigen candidates.
+  9. Figure 13 (`fig13_workflow_schematic.png`): 8-step pipeline workflow diagram.
+
+===============================================================================
+INPUT & OUTPUT CONTRACTS
+===============================================================================
+Inputs:
+  - `results/figure_summary.json`
+  - `results/neoantigen_candidates_shortlist.tsv`
+
+Outputs:
+  - `figures/fig5_methods_funnel.png`
+  - `figures/fig6_variant_classification.png`
+  - `figures/fig7_mut_vs_wt_affinity.png`
+  - `figures/fig8_delta_affinity.png`
+  - `figures/fig9_binder_class_mut_vs_wt.png`
+  - `figures/fig10_strong_binders_by_allele.png`
+  - `figures/fig11_mut_vs_wt_scatter.png`
+  - `figures/fig12_top_candidates.png`
+  - `figures/fig13_workflow_schematic.png`
 """
+
 import json
 import os
 import sys
@@ -14,6 +55,9 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 from matplotlib.patches import FancyBboxPatch, FancyArrowPatch
 
+# =============================================================================
+# FILE PATHS & RESOURCE RESOLUTION
+# =============================================================================
 BASE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 RES = os.path.join(BASE, "results")
 FIG = os.path.join(BASE, "figures")
@@ -21,7 +65,9 @@ SUM = os.path.join(RES, "figure_summary.json")
 SHORT = os.path.join(RES, "neoantigen_candidates_shortlist.tsv")
 os.makedirs(FIG, exist_ok=True)
 
-# ---- consistent style ------------------------------------------------------
+# =============================================================================
+# CONSISTENT FIGURE STYLING & COLOR PALETTE
+# =============================================================================
 plt.rcParams.update({
     "figure.dpi": 150, "savefig.dpi": 160,
     "font.size": 13, "axes.titlesize": 16, "axes.titleweight": "bold",
@@ -33,16 +79,22 @@ BLUE, RED, TEAL = "#4477AA", "#EE6677", "#66CCEE"
 GREEN, ORANGE, GREY, PURPLE = "#228833", "#EE7733", "#8899AA", "#AA3377"
 
 def save(fig, name):
+    """Saves figure with tight bounding box and closes canvas."""
     path = os.path.join(FIG, name)
     fig.tight_layout()
     fig.savefig(path, bbox_inches="tight")
     plt.close(fig)
     print(f"[09] wrote {name}", flush=True)
 
-def log(m): print(f"[09] {m}", flush=True)
+def log(m):
+    """Prints timestamped progress messages to stdout with line flushing."""
+    print(f"[09] {m}", flush=True)
 
-# ---------------------------------------------------------------------------
+# =============================================================================
+# INDIVIDUAL FIGURE RENDERING FUNCTIONS
+# =============================================================================
 def fig_funnel():
+    """Figure 5: Quantitative analysis funnel."""
     stages = [
         ("Raw MAF records", 310472),
         ("Filtered missense SNVs\n(protein-coding, PASS)", 184574),
@@ -74,6 +126,7 @@ def fig_funnel():
     save(fig, "fig5_methods_funnel.png")
 
 def fig_variant_class():
+    """Figure 6: Variant classification bar chart."""
     data = [
         ("Missense", 185538), ("Silent", 65426), ("Frameshift Del", 20070),
         ("Nonsense", 16613), ("Frameshift Ins", 5577), ("Intron", 3690),
@@ -95,6 +148,7 @@ def fig_variant_class():
     save(fig, "fig6_variant_classification.png")
 
 def fig_mut_vs_wt_affinity(S):
+    """Figure 7: Presentation probability histogram (Mutant vs Wild-Type)."""
     NB, LO, HI = S["NB"], S["LO"], S["HI"]
     edges = np.linspace(LO, HI, NB + 1)
     centers = (edges[:-1] + edges[1:]) / 2
@@ -116,6 +170,7 @@ def fig_mut_vs_wt_affinity(S):
     save(fig, "fig7_mut_vs_wt_affinity.png")
 
 def fig_delta(S):
+    """Figure 8: DeltaPresentation distribution."""
     DNB, DLO, DHI = S["DNB"], S["DLO"], S["DHI"]
     edges = np.linspace(DLO, DHI, DNB + 1)
     centers = (edges[:-1] + edges[1:]) / 2
@@ -138,6 +193,7 @@ def fig_delta(S):
     save(fig, "fig8_delta_affinity.png")
 
 def fig_binder_class(S):
+    """Figure 9: Presenter class comparison."""
     bt = S["binder_by_type"]
     cats = ["Strong", "Weak", "Non-presenter"]
     mut = [bt.get(f"Mutant|{c}", 0) for c in cats]
@@ -156,6 +212,7 @@ def fig_binder_class(S):
     save(fig, "fig9_binder_class_mut_vs_wt.png")
 
 def fig_strong_by_allele(S):
+    """Figure 10: Presenters per HLA allele."""
     ab = S["allele_binder"]
     alleles = ["HLA-A*02:01", "HLA-A*01:01", "HLA-A*03:01"]
     cats = ["Strong", "Weak"]
@@ -175,9 +232,10 @@ def fig_strong_by_allele(S):
     save(fig, "fig10_strong_binders_by_allele.png")
 
 def fig_scatter(S):
-    pts = np.array(S["scatter"], float)  # (wt_el, mut_el)
+    """Figure 11: Scatter plot of WT vs Mutant BigMHC_EL."""
+    pts = np.array(S["scatter"], float)
     wt = pts[:, 0]; mut = pts[:, 1]
-    favor = mut > wt   # mutant higher BigMHC_EL = stronger presentation
+    favor = mut > wt
     fig, ax = plt.subplots(figsize=(7.8, 7.2))
     ax.scatter(wt[~favor], mut[~favor], s=6, alpha=0.25, color=GREY,
                label="Mutant weaker/equal")
@@ -195,6 +253,7 @@ def fig_scatter(S):
     save(fig, "fig11_mut_vs_wt_scatter.png")
 
 def fig_top_candidates():
+    """Figure 12: Top shortlisted candidates horizontal bar plot."""
     rows = {}
     with open(SHORT) as fh:
         hdr = fh.readline().rstrip("\n").split("\t")
@@ -227,6 +286,7 @@ def fig_top_candidates():
     save(fig, "fig12_top_candidates.png")
 
 def fig_workflow():
+    """Figure 13: 8-step pipeline workflow schematic diagram."""
     steps = [
         ("1. Somatic mutations\nGDC TCGA-COAD MAF\n(GRCh38)", BLUE),
         ("2. Filter + mutation-\nby-sample matrix\n(01)", BLUE),
@@ -266,6 +326,9 @@ def fig_workflow():
                  fontsize=16, fontweight="bold", pad=16)
     save(fig, "fig13_workflow_schematic.png")
 
+# =============================================================================
+# MAIN PIPELINE EXECUTION
+# =============================================================================
 def main():
     with open(SUM) as fh:
         S = json.load(fh)
